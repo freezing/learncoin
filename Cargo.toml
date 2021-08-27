@@ -1,0 +1,18 @@
+[package]
+name = "coolcoin"
+version = "0.1.0"
+authors = ["Nikola Stojiljkovic <nikolavla@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "3.0.0-beta.2"
+
+[lib]
+name = "coolcoin_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "coolcoin"
+path = "src/bin/coolcoin.rs"
