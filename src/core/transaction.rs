@@ -2,6 +2,7 @@ use crate::core::{Address, Coolcoin};
 use std::fmt::{Display, Formatter};
 
 pub struct OutputIndex(usize);
+/// A hash of the transaction.
 pub struct TransactionId(String);
 
 impl Display for TransactionId {
@@ -16,18 +17,25 @@ impl From<String> for TransactionId {
     }
 }
 
+// TODO: Coinbase transaction input has coinbase data size and coinbase data, which is
+// arbitrary data used for extra nonce and mining tags.
+// This is used instead of the unlocking script.
+// Question: How to model this as an object?
+// Potential solution: store encoded values as bytes, so this allows both to be modelled with
+// the same data type. It is also how the actual bitcoin transaction is modelled.
 pub struct TransactionInput {
+    // 32 bytes. A pointer to the transaction containing the UTXO to be spent.
     transaction_id: TransactionId,
+    // 4 bytes. The number of the UTXO to eb spent, first one is 0.
     output_index: OutputIndex,
-    amount: Coolcoin,
+    // TODO: Add unlocking script.
 }
 
 impl TransactionInput {
-    pub fn new(transaction_id: TransactionId, output_index: OutputIndex, amount: Coolcoin) -> Self {
+    pub fn new(transaction_id: TransactionId, output_index: OutputIndex) -> Self {
         Self {
             transaction_id,
             output_index,
-            amount,
         }
     }
 
@@ -43,6 +51,7 @@ impl TransactionInput {
 }
 
 pub struct TransactionOutput {
+    // TODO: Address is actually a locking script.
     to: Address,
     amount: Coolcoin,
 }
