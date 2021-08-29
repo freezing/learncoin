@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::TcpStream;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct PeerMessageHeader {
     payload_size: u32,
 }
@@ -15,6 +15,7 @@ pub enum PeerMessage {
 pub struct PeerConnection {
     peer_address: String,
     tcp_stream: TcpStream,
+    last_header: Option<PeerMessageHeader>,
 }
 
 impl PeerConnection {
@@ -26,6 +27,7 @@ impl PeerConnection {
         Ok(Self {
             peer_address,
             tcp_stream,
+            last_header: None,
         })
     }
 
@@ -34,14 +36,17 @@ impl PeerConnection {
         let header_size = std::mem::size_of::<PeerMessageHeader>();
         let mut header_buffer = Vec::with_capacity(header_size);
 
-        let header = match self.tcp_stream.read(&mut header_buffer[..]) {
-            Ok(read_bytes) => {
-                assert_eq!(read_bytes, header_size);
-                bincode::deserialize::<PeerMessageHeader>(&header_buffer).unwrap()
-            }
-            Err(e) => match e.kind() {
-                ErrorKind::WouldBlock => return Ok(None),
-                _ => return Err(e.to_string()),
+        let header: PeerMessageHeader = match &self.last_header {
+            Some(header) => header.clone(),
+            None => match self.tcp_stream.read(&mut header_buffer[..]) {
+                Ok(read_bytes) => {
+                    assert_eq!(read_bytes, header_size);
+                    bincode::deserialize::<PeerMessageHeader>(&header_buffer).unwrap()
+                }
+                Err(e) => match e.kind() {
+                    ErrorKind::WouldBlock => return Ok(None),
+                    _ => return Err(e.to_string()),
+                },
             },
         };
 
@@ -51,18 +56,30 @@ impl PeerConnection {
                 assert_eq!(read_bytes as u32, header.payload_size);
                 bincode::deserialize::<PeerMessage>(&payload_buffer).unwrap()
             }
-            Err(e) => match e.kind() {
-                ErrorKind::WouldBlock => {
-                    // We are not handling this case properly because if it blocks at this stage
-                    // we would lose the header.
-                    // Let's ignore it for now since it is not going to happen often in practice.
-                    panic!("Unhandled would block");
+            Err(e) => {
+                return match e.kind() {
+                    ErrorKind::WouldBlock => {
+                        self.last_header = Some(header);
+                        Ok(None)
+                    }
+                    _ => Err(e.to_string()),
                 }
-                _ => return Err(e.to_string()),
-            },
+            }
         };
-
+        self.last_header = None;
         Ok(Some(payload))
+    }
+
+    pub fn receive_all(&mut self) -> Result<Vec<PeerMessage>, String> {
+        let mut messages = vec![];
+        loop {
+            match self.receive() {
+                Ok(Some(message)) => messages.push(message),
+                Ok(None) => break,
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(messages)
     }
 
     pub fn send(&mut self, payload: &PeerMessage) -> Result<bool, String> {

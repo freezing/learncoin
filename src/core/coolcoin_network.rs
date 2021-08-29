@@ -29,10 +29,24 @@ impl CoolcoinNetwork {
     }
 
     pub fn receive_data(&mut self) -> Vec<(String, PeerMessage)> {
-        let mut data = vec![];
-        for (sender, peer_connection) in &self.peer_connections {
-            todo!("Read messages from each peer connection.");
+        let mut all_messages = vec![];
+        for (sender, peer_connection) in &mut self.peer_connections {
+            match peer_connection.receive_all() {
+                Ok(messages) => {
+                    for message in messages {
+                        all_messages.push((sender.clone(), message));
+                    }
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Got an error while reading from peer: {}. Error: {}",
+                        sender, e
+                    );
+                    // TODO: Drop the connection and try to find another node.
+                    continue;
+                }
+            }
         }
-        data
+        all_messages
     }
 }
