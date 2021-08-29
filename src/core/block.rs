@@ -1,8 +1,6 @@
 use crate::core::{Sha256, Transaction};
-use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 // TODO: Move to merkle_tree module later.
 #[derive(Debug)]

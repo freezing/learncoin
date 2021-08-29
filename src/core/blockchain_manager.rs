@@ -36,12 +36,12 @@ impl BlockchainManager {
 
         if self.block_tree.exists(block.header().previous_block_hash()) {
             // If the parent exists, validate the node and insert it
-            self.validate_and_insert_in_blocktree(block, current_time);
+            self.validate_and_insert_in_blocktree(block, current_time)
         } else {
             // If there is no parent in the block tree, the received node is orphaned.
             self.orphaned_blocks.insert(block);
+            Ok(())
         }
-        Ok(())
     }
 
     /// Called when a new transaction is recevied from the network.
@@ -90,11 +90,11 @@ impl BlockchainManager {
         }
     }
 
-    fn fetch_chain_context(&self, block: &Block) -> ChainContext {
+    fn fetch_chain_context(&self, _block: &Block) -> ChainContext {
         todo!()
     }
 
-    fn fetch_utxo_context(&self, block: &Block) -> UtxoContext {
+    fn fetch_utxo_context(&self, _block: &Block) -> UtxoContext {
         todo!()
     }
 

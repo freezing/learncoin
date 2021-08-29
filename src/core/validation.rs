@@ -29,12 +29,13 @@ impl BlockValidator {
     pub fn validate_chain_context(
         block: &Block,
         chain_context: &ChainContext,
-        current_time: u32,
+        _current_time: u32,
     ) -> Result<(), String> {
         Self::validate_header_hash_less_than_target(
             &block.header().hash(),
             &chain_context.target_hash,
         )?;
+        Ok(())
     }
 
     pub fn validate_utxo_context(block: &Block, utxo_context: &UtxoContext) -> Result<(), String> {
@@ -92,7 +93,7 @@ impl BlockValidator {
 
     fn validate_all_transactions_are_valid(
         _block: &Block,
-        utxo_context: &UtxoContext,
+        _utxo_context: &UtxoContext,
     ) -> Result<(), String> {
         todo!("Transaction validation requires UtxoDatabase to find total coins in inputs")
     }

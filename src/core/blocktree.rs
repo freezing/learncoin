@@ -1,7 +1,7 @@
 use crate::core::block::BlockHash;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
 use crate::core::{Address, Block, BlockValidator, Coolcoin, Transaction};
-use std::collections::hash_map::Entry;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -33,14 +33,12 @@ pub struct BlockTree {
 impl BlockTree {
     // TODO: Take genesis_block as parameter.
     pub fn new() -> Self {
-        const GENESIS_DIFFICULTY: u32 = 1;
         let genesis_block = Self::genesis_block();
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             // Bitcoin timestamp runs out in year 2106.
             .as_secs() as u32;
-        let target_hash = Self::make_target_hash(GENESIS_DIFFICULTY);
         BlockValidator::validate_no_context(&genesis_block, current_time).unwrap();
         let mut blocks = HashMap::new();
         let genesis_hash = genesis_block.header().hash();
@@ -59,14 +57,6 @@ impl BlockTree {
             },
         }
     }
-
-    // TODO: There are three types of validation:
-    // - Chain-context validation such as difficulty (needs block height).
-    // - Context-free validation, such as block size, coinbase transactions, etc.
-    // - UTXO-context validation, such as input values < output values.
-    // TODO: Validation should be moved into a Validation concept.
-    // It may require additional API to get all the necessary information for the validation.
-    //
 
     /// Adds new block to the blockchain. It assumes that the block is valid and all
     /// necessary validation has been perform before calling this function.
@@ -90,6 +80,69 @@ impl BlockTree {
         // This is usually the case in practice, but there are some corner cases when this
         // may not be true.
         self.maybe_update_active_block(block_hash, block_height);
+    }
+
+    /// Returns the hash of the last block in the active blockchain.
+    pub fn tip(&self) -> &BlockHash {
+        &self.active_block.hash
+    }
+
+    /// Returns the fork, as well as paths from each node to the fork.
+    /// Fork is a block which is the lowest common ancestor for the given nodes that has
+    /// multiple children.
+    pub fn find_fork(
+        &self,
+        hash_a: &BlockHash,
+        hash_b: &BlockHash,
+    ) -> Option<(BlockHash, Vec<BlockHash>, Vec<BlockHash>)> {
+        assert_ne!(hash_a, hash_b);
+        let mut path_a = vec![];
+        let mut path_b = vec![];
+
+        // Bring to the same height.
+        let mut hash_a = hash_a;
+        let mut hash_b = hash_b;
+        loop {
+            match (self.blocks_tree.get(hash_a), self.blocks_tree.get(hash_b)) {
+                // If any of the nodes doesn't exist in the tree, then fork doesn't exist neither.
+                (None, _) | (_, None) => return None,
+                (Some(a), Some(b)) => match a.height.cmp(&b.height) {
+                    Ordering::Less => {
+                        path_b.push(*hash_b);
+                        hash_b = b.block.header().previous_block_hash()
+                    }
+                    Ordering::Equal => break,
+                    Ordering::Greater => {
+                        path_a.push(*hash_a);
+                        hash_a = a.block.header().previous_block_hash()
+                    }
+                },
+            };
+        }
+
+        // A and B are at the same height.
+        if hash_a == hash_b {
+            // LCA is found.
+            Some((*hash_a, path_a, path_b))
+        } else {
+            while hash_a != hash_b {
+                match (self.blocks_tree.get(hash_a), self.blocks_tree.get(hash_b)) {
+                    (None, _) | (_, None) => return None,
+                    (Some(a), Some(b)) => {
+                        path_a.push(*hash_a);
+                        path_b.push(*hash_b);
+
+                        hash_a = a.block.header().previous_block_hash();
+                        hash_b = b.block.header().previous_block_hash();
+                    }
+                }
+            }
+            Some((*hash_a, path_a, path_b))
+        }
+    }
+
+    pub fn height(&self, hash: &BlockHash) -> Option<u32> {
+        self.blocks_tree.get(hash).map(|entry| entry.height)
     }
 
     pub fn exists(&self, block_hash: &BlockHash) -> bool {
