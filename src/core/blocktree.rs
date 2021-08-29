@@ -92,6 +92,10 @@ impl BlockTree {
         self.maybe_update_active_block(block_hash, block_height);
     }
 
+    pub fn exists(&self, block_hash: &BlockHash) -> bool {
+        self.blocks_tree.contains_key(block_hash)
+    }
+
     fn maybe_update_active_block(&mut self, block_hash: BlockHash, new_block_total_work: u32) {
         if self.active_block.total_work < new_block_total_work {
             self.active_block = ActiveBlock {
@@ -113,17 +117,5 @@ impl BlockTree {
         todo!("Requires miner to be able to find the correct nonce for the genesis block.")
         // let header = BlockHeader::new(BlockHash::new());
         // Block::new(header, transactions)
-    }
-
-    /// In practice, the target hash is calculated in a more complex way:
-    /// https://en.bitcoin.it/wiki/Difficulty
-    /// However, for learning purposes, we are going to implement a simpler version which
-    /// returns a hash with bit 1 set at index that equals difficulty - 1.
-    /// I.e. this means that difficulty represents how many leading zeroes the block hash must have.
-    // TODO: Move somewhere else.
-    fn make_target_hash(difficulty: u32) -> BlockHash {
-        let mut hash = [0; 64];
-        hash[(difficulty - 1) as usize] = 1;
-        BlockHash::new(hash)
     }
 }
