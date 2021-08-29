@@ -45,7 +45,7 @@ impl CoolcoinNode {
             }
 
             // Receive data from the network.
-            let messages = self.network.receive_data();
+            let messages = self.network.receive_all();
             for (sender, message) in messages {
                 match self.on_message(&sender, message) {
                     Ok(()) => {}

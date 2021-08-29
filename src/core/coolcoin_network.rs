@@ -1,5 +1,6 @@
 use crate::core::peer_connection::PeerMessage;
 use crate::core::PeerConnection;
+use std::collections::HashSet;
 use std::io::{Error, ErrorKind, Read};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 
@@ -15,6 +16,7 @@ impl NetworkParams {}
 pub struct CoolcoinNetwork {
     peer_connections: Vec<(String, PeerConnection)>,
     tcp_listener: TcpListener,
+    send_queue: Vec<(String, PeerMessage)>,
 }
 
 impl CoolcoinNetwork {
@@ -32,6 +34,7 @@ impl CoolcoinNetwork {
         Ok(Self {
             peer_connections,
             tcp_listener,
+            send_queue: vec![],
         })
     }
 
@@ -54,8 +57,9 @@ impl CoolcoinNetwork {
         Ok(())
     }
 
-    pub fn receive_data(&mut self) -> Vec<(String, PeerMessage)> {
+    pub fn receive_all(&mut self) -> Vec<(String, PeerMessage)> {
         let mut all_messages = vec![];
+        let mut to_drop = HashSet::new();
         for (sender, peer_connection) in &mut self.peer_connections {
             match peer_connection.receive_all() {
                 Ok(messages) => {
@@ -68,17 +72,37 @@ impl CoolcoinNetwork {
                         "Got an error while reading from peer: {}. Error: {}",
                         sender, e
                     );
-                    // TODO: Drop the connection and try to find another node.
+                    to_drop.insert(sender.clone());
                     continue;
                 }
             }
         }
+
+        for peer_address in to_drop {
+            self.drop_connection(&peer_address);
+        }
+
         all_messages
+    }
+
+    pub fn send_to(&mut self, receiver: &str, message: PeerMessage) -> Result<bool, String> {
+        match self
+            .peer_connections
+            .iter_mut()
+            .find(|(address, _)| address == receiver)
+        {
+            None => Err(format!("Peer: {} doesn't exist.", receiver)),
+            Some((_, peer)) => peer.send(&message),
+        }
     }
 
     fn on_new_peer_connected(&mut self, socket_address: SocketAddr, tcp_stream: TcpStream) {
         let peer_connection = PeerConnection::from_tcp_stream(socket_address, tcp_stream);
         self.peer_connections
             .push((peer_connection.address().to_string(), peer_connection));
+    }
+
+    fn drop_connection(&mut self, sender: &str) {
+        // TODO: Drop connection and try to find another one.
     }
 }
