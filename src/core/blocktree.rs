@@ -1,6 +1,6 @@
-use crate::core::block::{BlockHash, BlockValidator};
+use crate::core::block::BlockHash;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
-use crate::core::{Address, Block, Coolcoin, Transaction};
+use crate::core::{Address, Block, BlockValidator, Coolcoin, Transaction};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -41,7 +41,7 @@ impl BlockTree {
             // Bitcoin timestamp runs out in year 2106.
             .as_secs() as u32;
         let target_hash = Self::make_target_hash(GENESIS_DIFFICULTY);
-        BlockValidator::validate(&genesis_block, &target_hash, current_time).unwrap();
+        BlockValidator::validate_no_context(&genesis_block, current_time).unwrap();
         let mut blocks = HashMap::new();
         let genesis_hash = genesis_block.header().hash();
         blocks.insert(

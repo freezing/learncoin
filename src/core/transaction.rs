@@ -2,7 +2,7 @@ use crate::core::{Address, Coolcoin, Sha256};
 use std::fmt::{Display, Formatter};
 
 /// A double SHA-256 hash of the transaction data.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
 pub struct TransactionId(Sha256);
 
 impl Display for TransactionId {

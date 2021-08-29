@@ -1,6 +1,5 @@
 use crate::core::block::BlockHash;
 use crate::core::Block;
-use std::alloc::Global;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
