@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::io::{Error, ErrorKind, Read, Write};
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpStream};
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 struct PeerMessageHeader {
@@ -29,6 +29,18 @@ impl PeerConnection {
             tcp_stream,
             last_header: None,
         })
+    }
+
+    pub fn address(&self) -> &str {
+        &self.peer_address
+    }
+
+    pub fn from_tcp_stream(address: SocketAddr, tcp_stream: TcpStream) -> Self {
+        Self {
+            peer_address: address.to_string(),
+            tcp_stream,
+            last_header: None,
+        }
     }
 
     pub fn receive(&mut self) -> Result<Option<PeerMessage>, String> {

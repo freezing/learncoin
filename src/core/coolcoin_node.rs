@@ -1,6 +1,9 @@
+use crate::core::peer_connection::PeerMessage;
 use crate::core::{BlockchainManager, CoolcoinNetwork};
 use std::net::TcpStream;
 use std::sync::Arc;
+use std::thread::sleep;
+use std::time::Duration;
 
 /// There are four roles in the Coolcoin P2P network:
 ///   - Wallet: A function of a wallet is to send and receive Coolcoins.
@@ -33,9 +36,35 @@ impl CoolcoinNode {
 
     pub fn run(mut self) {
         loop {
+            // Accept new peers.
+            match self.network.accept_new_peers() {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("Error while accepting new peers: {}", e);
+                }
+            }
+
             // Receive data from the network.
-            let data = self.network.receive_data();
+            let messages = self.network.receive_data();
+            for (sender, message) in messages {
+                match self.on_message(&sender, message) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        eprintln!("Error while processing new message: {}", e);
+                    }
+                }
+            }
+            sleep(Duration::from_millis(100));
         }
-        todo!()
+    }
+
+    fn on_message(&mut self, sender: &str, message: PeerMessage) -> Result<(), String> {
+        match message {
+            PeerMessage::GetBlocks(block_height) => self.on_get_blocks(sender, block_height),
+        }
+    }
+
+    fn on_get_blocks(&mut self, sender: &str, block_height: u32) -> Result<(), String> {
+        todo!("Send inventory status to the sender")
     }
 }
