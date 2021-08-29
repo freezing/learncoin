@@ -2,12 +2,12 @@ use std::fmt::{Display, Formatter};
 use std::iter::Sum;
 use std::ops::{Add, Sub};
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct Coolcoin(i64);
 
 impl Coolcoin {
-    pub fn new(amount: i64) -> Self {
-        Coolcoin::from(amount)
+    pub const fn new(amount: i64) -> Self {
+        Coolcoin(amount)
     }
 
     pub fn zero() -> Self {
@@ -43,7 +43,7 @@ impl Sub for Coolcoin {
 
 impl From<i64> for Coolcoin {
     fn from(value: i64) -> Self {
-        Self(value)
+        Self::new(value)
     }
 }
 
