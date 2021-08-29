@@ -1,3 +1,4 @@
+use crate::core::block::BlockHash;
 use crate::core::{
     Block, BlockTree, BlockValidator, ChainContext, OrphanedBlocks, Transaction, TransactionPool,
     UtxoContext, UtxoPool,
@@ -67,7 +68,17 @@ impl BlockchainManager {
         BlockValidator::validate_utxo_context(&block, &utxo_context)?;
 
         let block_hash = block.header().hash();
+
+        // Before inserting the new block, store the current tip.
+        // This is required to make the necessary updates if the active blockchain has changed.
+        let old_tip = self.block_tree.tip().clone();
         self.block_tree.insert(block);
+        let new_tip = self.block_tree.tip().clone();
+
+        if old_tip != new_tip {
+            self.on_active_blockchain_changed(&old_tip, &new_tip);
+        }
+
         // At this point, it is possible that some orphaned blocks have a new parent in the
         // block tree.
         // Make sure that we insert them.
@@ -77,6 +88,7 @@ impl BlockchainManager {
         for orphaned_block in orphaned_blocks {
             // It's important that we do not return on the first error, because some blocks may
             // be valid and should be processed in that case.
+            // Note: we know that the parent now exists in the block tree for each orphaned block.
             match self.validate_and_insert_in_blocktree(orphaned_block, current_time) {
                 Ok(()) => {}
                 Err(e) => errors.push(e),
@@ -88,6 +100,17 @@ impl BlockchainManager {
         } else {
             Err(errors.join("\n"))
         }
+    }
+
+    fn on_active_blockchain_changed(&mut self, old_tip: &BlockHash, new_tip: &BlockHash) {
+        // The fork is always expected to exist at this stage because only the nodes with a
+        // parent have been inserted in the block tree.
+        let (fork, path_old, path_new) = self.block_tree.find_fork(old_tip, new_tip).unwrap();
+        for old_block in &path_old {
+            self.transaction_pool
+                .undo_active_block(self.block_tree.get(old_block).unwrap())
+        }
+        todo!("Handle UTXO pool")
     }
 
     fn fetch_chain_context(&self, _block: &Block) -> ChainContext {

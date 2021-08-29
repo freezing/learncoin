@@ -19,7 +19,7 @@ impl TransactionId {
 }
 
 /// 4 bytes representing the index of the transaction output.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct OutputIndex(i32);
 
 impl OutputIndex {
@@ -39,7 +39,7 @@ const COINBASE_OUTPUT_INDEX: OutputIndex = OutputIndex::new(-1);
 // Question: How to model this as an object?
 // Potential solution: store encoded values as bytes, so this allows both to be modelled with
 // the same data type. It is also how the actual bitcoin transaction is modelled.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransactionInput {
     // 32 bytes. A pointer to the transaction containing the UTXO to be spent.
     utxo_id: TransactionId,
@@ -75,7 +75,7 @@ impl TransactionInput {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TransactionOutput {
     // TODO: Address is actually a locking script.
     to: Address,
@@ -96,7 +96,7 @@ impl TransactionOutput {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
     id: TransactionId,
     inputs: Vec<TransactionInput>,

@@ -1,7 +1,7 @@
 use crate::core::Sha256;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Address(Sha256);
 
 impl Address {

@@ -58,6 +58,10 @@ impl BlockTree {
         }
     }
 
+    pub fn get(&self, block_hash: &BlockHash) -> Option<&Block> {
+        self.blocks_tree.get(block_hash).map(|entry| &entry.block)
+    }
+
     /// Adds new block to the blockchain. It assumes that the block is valid and all
     /// necessary validation has been perform before calling this function.
     ///

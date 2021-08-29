@@ -1,5 +1,5 @@
 use crate::core::transaction::TransactionId;
-use crate::core::Transaction;
+use crate::core::{Block, Transaction};
 use std::collections::HashMap;
 
 /// An unordered collection of transactions that are not in blocks in the main chain,
@@ -24,5 +24,18 @@ impl TransactionPool {
         self.transactions.insert(*transaction.id(), transaction);
     }
 
-    // TODO: Process block and undo block (whenever an active chain is updated).
+    pub fn new_active_block(&mut self, block: &Block) {
+        for transaction in block.transactions() {
+            self.transactions.remove(transaction.id());
+            // Previous transaction may not exist, e.g. because the node was started later.
+        }
+    }
+
+    pub fn undo_active_block(&mut self, block: &Block) {
+        let transactions = block.transactions().to_vec();
+        for transaction in transactions {
+            let previous = self.transactions.insert(*transaction.id(), transaction);
+            assert!(previous.is_some());
+        }
+    }
 }
