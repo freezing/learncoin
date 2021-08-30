@@ -139,6 +139,7 @@ impl CoolcoinNode {
         current_time: u32,
     ) -> Result<(), String> {
         self.new_block(block.clone(), current_time)?;
+        todo!("Do not relay the block without validating it.");
         self.network
             .multicast(PeerMessage::RelayBlock(block), vec![sender.to_string()])
     }
