@@ -85,16 +85,19 @@ impl CoolcoinNetwork {
         all_messages
     }
 
-    pub fn broadcast(&mut self, message: PeerMessage) -> Result<(), String> {
+    pub fn multicast(&mut self, message: PeerMessage, skipped: Vec<String>) -> Result<(), String> {
         let mut errors = vec![];
         let mut to_drop = HashSet::new();
         for (receiver, connection) in &mut self.peer_connections {
-            match connection.send(&message) {
-                Ok(_) => {}
-                Err(e) => {
-                    to_drop.insert(receiver.to_string());
-                    errors.push(e);
-                }
+            match skipped.contains(receiver) {
+                true => {}
+                false => match connection.send(&message) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        to_drop.insert(receiver.to_string());
+                        errors.push(e);
+                    }
+                },
             }
         }
 
@@ -107,6 +110,10 @@ impl CoolcoinNetwork {
         } else {
             Err(errors.join("\n"))
         }
+    }
+
+    pub fn broadcast(&mut self, message: PeerMessage) -> Result<(), String> {
+        self.multicast(message, vec![])
     }
 
     pub fn send_to(&mut self, receiver: &str, message: PeerMessage) -> Result<bool, String> {

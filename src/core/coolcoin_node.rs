@@ -134,25 +134,30 @@ impl CoolcoinNode {
 
     fn on_relay_block(
         &mut self,
-        _sender: &str,
+        sender: &str,
         block: Block,
         current_time: u32,
     ) -> Result<(), String> {
-        self.new_block(block, current_time)
+        self.new_block(block.clone(), current_time)?;
+        self.network
+            .multicast(PeerMessage::RelayBlock(block), vec![sender.to_string()])
     }
 
     fn new_block(&mut self, block: Block, current_time: u32) -> Result<(), String> {
         self.blockchain_manager
             // TODO: If the validation fails, we should disconnect the peer.
-            .on_block_received(block, current_time)
+            .on_block_received(block.clone(), current_time)
     }
 
     fn on_relay_transaction(
         &mut self,
-        _sender: &str,
+        sender: &str,
         transaction: Transaction,
     ) -> Result<(), String> {
-        self.network
-            .broadcast(PeerMessage::RelayTransaction(transaction))
+        // TODO: If validation fails, we should disconnect the peer.
+        self.network.multicast(
+            PeerMessage::RelayTransaction(transaction),
+            vec![sender.to_string()],
+        )
     }
 }
