@@ -85,6 +85,30 @@ impl CoolcoinNetwork {
         all_messages
     }
 
+    pub fn broadcast(&mut self, message: PeerMessage) -> Result<(), String> {
+        let mut errors = vec![];
+        let mut to_drop = HashSet::new();
+        for (receiver, connection) in &mut self.peer_connections {
+            match connection.send(&message) {
+                Ok(_) => {}
+                Err(e) => {
+                    to_drop.insert(receiver.to_string());
+                    errors.push(e);
+                }
+            }
+        }
+
+        for peer_address in to_drop {
+            self.drop_connection(&peer_address);
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("\n"))
+        }
+    }
+
     pub fn send_to(&mut self, receiver: &str, message: PeerMessage) -> Result<bool, String> {
         match self
             .peer_connections

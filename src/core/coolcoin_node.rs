@@ -1,9 +1,10 @@
+use crate::core::block::BlockHash;
 use crate::core::peer_connection::PeerMessage;
-use crate::core::{BlockchainManager, CoolcoinNetwork};
+use crate::core::{Block, BlockchainManager, CoolcoinNetwork, Transaction};
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// There are four roles in the Coolcoin P2P network:
 ///   - Wallet: A function of a wallet is to send and receive Coolcoins.
@@ -24,6 +25,7 @@ use std::time::Duration;
 pub struct CoolcoinNode {
     network: CoolcoinNetwork,
     blockchain_manager: BlockchainManager,
+    outstanding_get_inventory_requests: Vec<String>,
 }
 
 impl CoolcoinNode {
@@ -31,11 +33,23 @@ impl CoolcoinNode {
         Ok(Self {
             network,
             blockchain_manager: BlockchainManager::new(),
+            outstanding_get_inventory_requests: Vec::new(),
         })
     }
 
     pub fn run(mut self) {
+        // If we can't send messages to all nodes immediately, then there is no point in trying
+        // to recover since this is part of the startup.
+        // It is okay for the process to fail since retrying would mean rerunning the process.
+        // Of course, in production like implementation we would handle that in code.
+        self.network.broadcast(PeerMessage::GetInventory()).unwrap();
+
         loop {
+            let current_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as u32;
+
             // Accept new peers.
             match self.network.accept_new_peers() {
                 Ok(()) => {}
@@ -44,10 +58,22 @@ impl CoolcoinNode {
                 }
             }
 
+            // Process outstanding inventory requests.
+            let outstanding_requests = self.outstanding_get_inventory_requests.clone();
+            self.outstanding_get_inventory_requests.clear();
+            for request in outstanding_requests {
+                match self.on_get_inventory(&request) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        eprintln!("Error while processing outstanding requests: {}", e);
+                    }
+                }
+            }
+
             // Receive data from the network.
             let messages = self.network.receive_all();
             for (sender, message) in messages {
-                match self.on_message(&sender, message) {
+                match self.on_message(&sender, message, current_time) {
                     Ok(()) => {}
                     Err(e) => {
                         eprintln!("Error while processing new message: {}", e);
@@ -58,13 +84,75 @@ impl CoolcoinNode {
         }
     }
 
-    fn on_message(&mut self, sender: &str, message: PeerMessage) -> Result<(), String> {
+    fn on_message(
+        &mut self,
+        sender: &str,
+        message: PeerMessage,
+        current_time: u32,
+    ) -> Result<(), String> {
         match message {
-            PeerMessage::GetBlocks(block_height) => self.on_get_blocks(sender, block_height),
+            PeerMessage::GetInventory() => self.on_get_inventory(sender),
+            PeerMessage::ResponseInventory(inventory) => {
+                self.on_response_inventory(sender, inventory, current_time)
+            }
+            PeerMessage::RelayBlock(block) => self.on_relay_block(sender, block, current_time),
+            PeerMessage::RelayTransaction(transaction) => {
+                self.on_relay_transaction(sender, transaction)
+            }
         }
     }
 
-    fn on_get_blocks(&mut self, sender: &str, block_height: u32) -> Result<(), String> {
-        todo!("Send inventory status to the sender")
+    fn on_get_inventory(&mut self, sender: &str) -> Result<(), String> {
+        let inventory = self.blockchain_manager.block_tree().active_blockchain();
+        match self
+            .network
+            .send_to(sender, PeerMessage::ResponseInventory(inventory))
+        {
+            Ok(true) => Ok(()),
+            Ok(false) => {
+                // Flow control kicked in, we will store the request and send it later.
+                self.outstanding_get_inventory_requests
+                    .push(sender.to_string());
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn on_response_inventory(
+        &mut self,
+        _sender: &str,
+        inventory: Vec<Block>,
+        current_time: u32,
+    ) -> Result<(), String> {
+        // Skip the genesis block.
+        for block in inventory.into_iter().skip(1) {
+            self.new_block(block, current_time)?;
+        }
+        Ok(())
+    }
+
+    fn on_relay_block(
+        &mut self,
+        _sender: &str,
+        block: Block,
+        current_time: u32,
+    ) -> Result<(), String> {
+        self.new_block(block, current_time)
+    }
+
+    fn new_block(&mut self, block: Block, current_time: u32) -> Result<(), String> {
+        self.blockchain_manager
+            // TODO: If the validation fails, we should disconnect the peer.
+            .on_block_received(block, current_time)
+    }
+
+    fn on_relay_transaction(
+        &mut self,
+        _sender: &str,
+        transaction: Transaction,
+    ) -> Result<(), String> {
+        self.network
+            .broadcast(PeerMessage::RelayTransaction(transaction))
     }
 }

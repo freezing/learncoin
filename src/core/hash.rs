@@ -1,4 +1,5 @@
 use crate::core::block::BlockHash;
+use serde::{Deserialize, Serialize};
 
 pub type Sha256 = [u8; 64];
 

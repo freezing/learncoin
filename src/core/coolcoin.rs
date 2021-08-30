@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::iter::Sum;
 use std::ops::{Add, Sub};
 
-#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Coolcoin(i64);
 
 impl Coolcoin {

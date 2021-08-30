@@ -1,8 +1,12 @@
 use crate::core::Sha256;
+use serde::{Deserialize, Serialize};
+use serde_big_array::big_array;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, Clone)]
-pub struct Address(Sha256);
+big_array! {BigArray;}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Address(#[serde(with = "BigArray")] Sha256);
 
 impl Address {
     pub fn new(sha256: Sha256) -> Self {

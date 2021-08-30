@@ -1,3 +1,5 @@
+use crate::core::block::BlockHash;
+use crate::core::{Block, Transaction};
 use serde::{Deserialize, Serialize};
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -9,7 +11,10 @@ struct PeerMessageHeader {
 
 #[derive(Serialize, Deserialize)]
 pub enum PeerMessage {
-    GetBlocks(u32),
+    GetInventory(),
+    ResponseInventory(Vec<Block>),
+    RelayBlock(Block),
+    RelayTransaction(Transaction),
 }
 
 pub struct PeerConnection {

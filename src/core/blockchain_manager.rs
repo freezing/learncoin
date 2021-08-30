@@ -23,6 +23,18 @@ impl BlockchainManager {
         }
     }
 
+    pub fn block_tree(&self) -> &BlockTree {
+        &self.block_tree
+    }
+
+    pub fn transaction_pool(&self) -> &TransactionPool {
+        &self.transaction_pool
+    }
+
+    pub fn utxo_pool(&self) -> &UtxoPool {
+        &self.utxo_pool
+    }
+
     /// Called when a new block is received from the network.
     /// Note that the same block may be received multiple times (e.g. each node may send the same
     /// block once, or there may be malicious nodes).

@@ -1,9 +1,13 @@
 use crate::core::{Address, Coolcoin, Sha256};
+use serde::{Deserialize, Serialize};
+use serde_big_array::big_array;
 use std::fmt::{Display, Formatter};
 
+big_array! {BigArray;}
+
 /// A double SHA-256 hash of the transaction data.
-#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
-pub struct TransactionId(Sha256);
+#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub struct TransactionId(#[serde(with = "BigArray")] Sha256);
 
 impl Display for TransactionId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -19,7 +23,7 @@ impl TransactionId {
 }
 
 /// 4 bytes representing the index of the transaction output.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct OutputIndex(i32);
 
 impl OutputIndex {
@@ -39,7 +43,7 @@ const COINBASE_OUTPUT_INDEX: OutputIndex = OutputIndex::new(-1);
 // Question: How to model this as an object?
 // Potential solution: store encoded values as bytes, so this allows both to be modelled with
 // the same data type. It is also how the actual bitcoin transaction is modelled.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionInput {
     // 32 bytes. A pointer to the transaction containing the UTXO to be spent.
     utxo_id: TransactionId,
@@ -75,7 +79,7 @@ impl TransactionInput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransactionOutput {
     // TODO: Address is actually a locking script.
     to: Address,
@@ -96,7 +100,7 @@ impl TransactionOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     id: TransactionId,
     inputs: Vec<TransactionInput>,

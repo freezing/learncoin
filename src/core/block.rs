@@ -1,13 +1,17 @@
 use crate::core::{Sha256, Transaction};
+use serde::{Deserialize, Serialize};
+use serde_big_array::big_array;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
 // TODO: Move to merkle_tree module later.
-#[derive(Debug)]
+big_array! { BigArray; }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MerkleHash(Vec<u8>);
 
-#[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
-pub struct BlockHash(Sha256);
+#[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
+pub struct BlockHash(#[serde(with = "BigArray")] Sha256);
 
 impl BlockHash {
     pub fn new(hash: Sha256) -> Self {
@@ -25,7 +29,7 @@ impl Display for BlockHash {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockHeader {
     // Version number ignored.
     // A reference to the hash of the previous (parent) block in the chain.
@@ -77,7 +81,7 @@ impl BlockHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
     header: BlockHeader,
     transactions: Vec<Transaction>,

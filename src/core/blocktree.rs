@@ -25,7 +25,7 @@ struct ActiveBlock {
 /// (e.g. difficulty may be different for a different path).
 pub struct BlockTree {
     // Blocks that have a parent in the network, indexed by their hash.
-    blocks_tree: HashMap<BlockHash, BlockTreeEntry>,
+    tree: HashMap<BlockHash, BlockTreeEntry>,
     // A hash of the last block in the active blockchain.
     active_block: ActiveBlock,
 }
@@ -40,9 +40,9 @@ impl BlockTree {
             // Bitcoin timestamp runs out in year 2106.
             .as_secs() as u32;
         BlockValidator::validate_no_context(&genesis_block, current_time).unwrap();
-        let mut blocks = HashMap::new();
+        let mut tree = HashMap::new();
         let genesis_hash = genesis_block.header().hash();
-        blocks.insert(
+        tree.insert(
             genesis_hash,
             BlockTreeEntry {
                 block: genesis_block,
@@ -50,7 +50,7 @@ impl BlockTree {
             },
         );
         Self {
-            blocks_tree: blocks,
+            tree,
             active_block: ActiveBlock {
                 hash: genesis_hash,
                 total_work: 0,
@@ -58,8 +58,18 @@ impl BlockTree {
         }
     }
 
+    pub fn active_blockchain(&self) -> Vec<Block> {
+        let mut blockchain = vec![];
+        let mut current_entry = Some(self.tree.get(&self.active_block.hash).unwrap());
+        while let Some(tree_entry) = current_entry {
+            blockchain.push(tree_entry.block.clone());
+            current_entry = self.tree.get(&tree_entry.block.header().hash());
+        }
+        blockchain.into_iter().rev().collect()
+    }
+
     pub fn get(&self, block_hash: &BlockHash) -> Option<&Block> {
-        self.blocks_tree.get(block_hash).map(|entry| &entry.block)
+        self.tree.get(block_hash).map(|entry| &entry.block)
     }
 
     /// Adds new block to the blockchain. It assumes that the block is valid and all
@@ -70,9 +80,9 @@ impl BlockTree {
     pub fn insert(&mut self, block: Block) {
         let parent_hash = block.header().previous_block_hash();
         let block_hash = block.header().hash();
-        let parent = self.blocks_tree.get(parent_hash).unwrap();
+        let parent = self.tree.get(parent_hash).unwrap();
         let block_height = parent.height + 1;
-        let previous = self.blocks_tree.insert(
+        let previous = self.tree.insert(
             block.header().hash(),
             BlockTreeEntry {
                 block,
@@ -107,7 +117,7 @@ impl BlockTree {
         let mut hash_a = hash_a;
         let mut hash_b = hash_b;
         loop {
-            match (self.blocks_tree.get(hash_a), self.blocks_tree.get(hash_b)) {
+            match (self.tree.get(hash_a), self.tree.get(hash_b)) {
                 // If any of the nodes doesn't exist in the tree, then fork doesn't exist neither.
                 (None, _) | (_, None) => return None,
                 (Some(a), Some(b)) => match a.height.cmp(&b.height) {
@@ -130,7 +140,7 @@ impl BlockTree {
             Some((*hash_a, path_a, path_b))
         } else {
             while hash_a != hash_b {
-                match (self.blocks_tree.get(hash_a), self.blocks_tree.get(hash_b)) {
+                match (self.tree.get(hash_a), self.tree.get(hash_b)) {
                     (None, _) | (_, None) => return None,
                     (Some(a), Some(b)) => {
                         path_a.push(*hash_a);
@@ -146,11 +156,11 @@ impl BlockTree {
     }
 
     pub fn height(&self, hash: &BlockHash) -> Option<u32> {
-        self.blocks_tree.get(hash).map(|entry| entry.height)
+        self.tree.get(hash).map(|entry| entry.height)
     }
 
     pub fn exists(&self, block_hash: &BlockHash) -> bool {
-        self.blocks_tree.contains_key(block_hash)
+        self.tree.contains_key(block_hash)
     }
 
     fn maybe_update_active_block(&mut self, block_hash: BlockHash, new_block_total_work: u32) {
