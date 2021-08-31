@@ -7,7 +7,7 @@ big_array! {BigArray;}
 
 /// A double SHA-256 hash of the transaction data.
 #[derive(Debug, Hash, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
-pub struct TransactionId(#[serde(with = "BigArray")] Sha256);
+pub struct TransactionId(Sha256);
 
 impl Display for TransactionId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -33,7 +33,7 @@ impl OutputIndex {
 }
 
 // Set all bits to 0.
-const COINBASE_UTXO_ID: TransactionId = TransactionId([0; 64]);
+const COINBASE_UTXO_ID: TransactionId = TransactionId([0; 32]);
 // Set all bits to 1.
 const COINBASE_OUTPUT_INDEX: OutputIndex = OutputIndex::new(-1);
 

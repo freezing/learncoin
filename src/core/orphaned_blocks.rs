@@ -46,9 +46,9 @@ impl OrphanedBlocks {
     }
 
     /// Removes all children for the given parent hash.
-    pub fn remove(&mut self, parent_hash: BlockHash) -> Vec<Block> {
+    pub fn remove(&mut self, parent_hash: &BlockHash) -> Vec<Block> {
         self.orphaned_blocks
-            .remove(&parent_hash)
+            .remove(parent_hash)
             .unwrap_or_else(|| vec![])
     }
 }

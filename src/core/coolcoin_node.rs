@@ -1,6 +1,9 @@
 use crate::core::block::BlockHash;
 use crate::core::peer_connection::PeerMessage;
-use crate::core::{Block, BlockchainManager, CoolcoinNetwork, Transaction};
+use crate::core::{
+    Block, BlockchainManager, ChainContext, CoolcoinNetwork, Transaction, TransactionPool,
+    UtxoContext, UtxoPool,
+};
 use std::net::TcpStream;
 use std::sync::Arc;
 use std::thread::sleep;
@@ -26,6 +29,8 @@ pub struct CoolcoinNode {
     network: CoolcoinNetwork,
     blockchain_manager: BlockchainManager,
     outstanding_get_inventory_requests: Vec<String>,
+    transaction_pool: TransactionPool,
+    utxo_pool: UtxoPool,
 }
 
 impl CoolcoinNode {
@@ -34,6 +39,8 @@ impl CoolcoinNode {
             network,
             blockchain_manager: BlockchainManager::new(),
             outstanding_get_inventory_requests: Vec::new(),
+            transaction_pool: TransactionPool::new(),
+            utxo_pool: UtxoPool::new(),
         })
     }
 
@@ -95,7 +102,7 @@ impl CoolcoinNode {
             PeerMessage::ResponseInventory(inventory) => {
                 self.on_response_inventory(sender, inventory, current_time)
             }
-            PeerMessage::RelayBlock(block) => self.on_relay_block(sender, block, current_time),
+            PeerMessage::RelayBlock(block) => self.on_relay_block(sender, block),
             PeerMessage::RelayTransaction(transaction) => {
                 self.on_relay_transaction(sender, transaction)
             }
@@ -123,31 +130,56 @@ impl CoolcoinNode {
         &mut self,
         _sender: &str,
         inventory: Vec<Block>,
-        current_time: u32,
+        _current_time: u32,
     ) -> Result<(), String> {
         // Skip the genesis block.
         for block in inventory.into_iter().skip(1) {
-            self.new_block(block, current_time)?;
+            self.process_new_block_and_update_active_blockchain(block)?;
         }
         Ok(())
     }
 
-    fn on_relay_block(
-        &mut self,
-        sender: &str,
-        block: Block,
-        current_time: u32,
-    ) -> Result<(), String> {
-        self.new_block(block.clone(), current_time)?;
-        todo!("Do not relay the block without validating it.");
-        self.network
-            .multicast(PeerMessage::RelayBlock(block), vec![sender.to_string()])
+    fn on_relay_block(&mut self, _sender: &str, block: Block) -> Result<(), String> {
+        self.process_new_block_and_update_active_blockchain(block)
     }
 
-    fn new_block(&mut self, block: Block, current_time: u32) -> Result<(), String> {
-        self.blockchain_manager
+    fn process_new_block_and_update_active_blockchain(
+        &mut self,
+        block: Block,
+    ) -> Result<(), String> {
+        let old_tip = self.blockchain_manager.tip().clone();
+        self.process_new_block(block)?;
+        let new_tip = self.blockchain_manager.tip().clone();
+        self.on_active_blockchain_changed(&old_tip, &new_tip);
+        Ok(())
+    }
+
+    /// Should only be called by process_new_block_and_update_active_blockchain
+    fn process_new_block(&mut self, block: Block) -> Result<(), String> {
+        if self.blockchain_manager.exists(&block) {
+            Ok(())
+        } else {
+            let orphans = self.blockchain_manager.new_block(block.clone());
+            // Broadcast is fine here because the sender would drop it given that it already
+            // has it.
+            self.network.broadcast(PeerMessage::RelayBlock(block));
+
+            // TODO: Validate block.
             // TODO: If the validation fails, we should disconnect the peer.
-            .on_block_received(block.clone(), current_time)
+            let mut errors = vec![];
+            for orphan in orphans {
+                match self.process_new_block(orphan) {
+                    Ok(()) => {}
+                    Err(e) => errors.push(e),
+                }
+            }
+
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors.join("\n"))
+            }
+        }
     }
 
     fn on_relay_transaction(
@@ -155,10 +187,50 @@ impl CoolcoinNode {
         sender: &str,
         transaction: Transaction,
     ) -> Result<(), String> {
-        // TODO: If validation fails, we should disconnect the peer.
+        // TODO: If validation fails, we should disconnect the peers and do not insert it.
+        self.transaction_pool.insert(transaction.clone());
         self.network.multicast(
             PeerMessage::RelayTransaction(transaction),
             vec![sender.to_string()],
         )
+    }
+
+    fn on_active_blockchain_changed(&mut self, old_tip: &BlockHash, new_tip: &BlockHash) {
+        // The fork is always expected to exist at this stage because only the nodes with a
+        // parent have been inserted in the block tree.
+        // If fork block is the same as old_tip, then this is an extension of the already active
+        // block chain, so no old blocks need to be deleted.
+        // As a matter of fact, we don't have to special-case this scenario because the old path
+        // would be empty since it doesn't include the fork.
+        // TODO: Write a unit test to ensure this is correct.
+        let (_fork, path_old, path_new) = self
+            .blockchain_manager
+            .block_tree()
+            .find_fork(old_tip, new_tip)
+            .unwrap();
+
+        for old_block in &path_old {
+            self.transaction_pool
+                // TODO: Fork should return full blocks not just hash.
+                .undo_active_block(self.blockchain_manager.block_tree().get(old_block).unwrap());
+        }
+
+        for new_block in &path_new {
+            self.transaction_pool
+                .new_active_block(self.blockchain_manager.block_tree().get(new_block).unwrap());
+        }
+    }
+
+    // Below are required for validation.
+    fn fetch_chain_context(&self, _block: &Block) -> ChainContext {
+        todo!()
+    }
+
+    fn fetch_utxo_context(&self, _block: &Block) -> UtxoContext {
+        todo!()
+    }
+
+    fn update_utxo_pool(&self) {
+        todo!("Handle UTXO pool")
     }
 }

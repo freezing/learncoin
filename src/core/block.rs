@@ -11,7 +11,7 @@ big_array! { BigArray; }
 pub struct MerkleHash(Vec<u8>);
 
 #[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
-pub struct BlockHash(#[serde(with = "BigArray")] Sha256);
+pub struct BlockHash(Sha256);
 
 impl BlockHash {
     pub fn new(hash: Sha256) -> Self {

@@ -101,7 +101,7 @@ impl BlockTree {
         &self.active_block.hash
     }
 
-    /// Returns the fork, as well as paths from each node to the fork.
+    /// Returns the fork, as well as paths from each node to the fork, excluding the fork.
     /// Fork is a block which is the lowest common ancestor for the given nodes that has
     /// multiple children.
     pub fn find_fork(
@@ -175,7 +175,7 @@ impl BlockTree {
     fn genesis_block() -> Block {
         const GENESIS_REWARD: Coolcoin = Coolcoin::new(50);
         // TODO: Generate genesis address.
-        let genesis_address = Address::new([0; 64]);
+        let genesis_address = Address::new([0; 32]);
         let locktime = 0;
         let inputs = vec![TransactionInput::new_coinbase()];
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
