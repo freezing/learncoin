@@ -15,8 +15,7 @@ impl Address {
 }
 
 impl Display for Address {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        // write!(f, "{:#?}", self.0)
-        todo!("Write as hexadecimal")
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", crate::core::as_hex(&self.0))
     }
 }

@@ -4,6 +4,10 @@ use sha2::Digest;
 
 pub type Sha256 = [u8; 32];
 
+pub fn as_hex(sha: &Sha256) -> String {
+    hex::encode(sha)
+}
+
 pub fn hash(data: &[u8]) -> Sha256 {
     let mut hasher = sha2::Sha256::new();
     hasher.update(data);

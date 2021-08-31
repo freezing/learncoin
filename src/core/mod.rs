@@ -17,7 +17,7 @@ pub mod validation;
 pub use self::{
     address::Address, block::Block, blockchain_manager::BlockchainManager, blocktree::BlockTree,
     coolcoin::Coolcoin, coolcoin_network::CoolcoinNetwork, coolcoin_node::CoolcoinNode,
-    hash::target_hash, hash::Sha256, orphaned_blocks::OrphanedBlocks,
+    hash::as_hex, hash::target_hash, hash::Sha256, orphaned_blocks::OrphanedBlocks,
     orphaned_transaction_pool::OrphanedTransactionPool, peer_connection::PeerConnection,
     transaction::Transaction, transaction_pool::TransactionPool, utxo_pool::UtxoPool,
     validation::BlockValidator, validation::ChainContext, validation::UtxoContext,

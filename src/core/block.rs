@@ -24,8 +24,8 @@ impl BlockHash {
 }
 
 impl Display for BlockHash {
-    fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!("Write as hex value")
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", crate::core::as_hex(&self.0))
     }
 }
 
