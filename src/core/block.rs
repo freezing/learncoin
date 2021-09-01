@@ -1,3 +1,4 @@
+use crate::core::hash::hash;
 use crate::core::{Sha256, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_big_array::big_array;
@@ -9,6 +10,12 @@ big_array! { BigArray; }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MerkleHash(Vec<u8>);
+
+impl Display for MerkleHash {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(self.0.as_slice()))
+    }
+}
 
 #[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BlockHash(Sha256);
@@ -62,7 +69,20 @@ impl BlockHeader {
     }
 
     pub fn hash(&self) -> BlockHash {
-        todo!("Get SHA-256 of the header")
+        // We are going to pretend that we are encoding the header with the format that
+        // is machine independent.
+        // However, what we are doing may not work on every platform the same way (not sure how rust represents string in memory).
+        // But this is okay for learning purposes.
+        // In the real production, we would encode this using universal wire format.
+        let data = format!(
+            "{}{}{}{}{}",
+            self.previous_block_hash,
+            self.merkle_root,
+            self.timestamp,
+            self.difficulty_target,
+            self.nonce
+        );
+        BlockHash::new(hash(data.as_bytes()))
     }
     pub fn timestamp(&self) -> u32 {
         self.timestamp

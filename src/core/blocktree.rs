@@ -1,4 +1,5 @@
-use crate::core::block::BlockHash;
+use crate::core::block::{BlockHash, BlockHeader};
+use crate::core::miner::Miner;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
 use crate::core::{Address, Block, BlockValidator, Coolcoin, Transaction};
 use std::cmp::Ordering;
@@ -179,10 +180,21 @@ impl BlockTree {
         let locktime = 0;
         let inputs = vec![TransactionInput::new_coinbase()];
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
-        let _transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
+        let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
+        let previous_block_hash = BlockHash::new([0; 32]);
+        let merkle_root = todo!("Get merkle root for transactions");
+        let timestamp = todo!("Get timestamp close to now");
+        let difficulty = 1;
+        let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)
+            .expect("can't find nonce for genesis block");
 
-        todo!("Requires miner to be able to find the correct nonce for the genesis block.")
-        // let header = BlockHeader::new(BlockHash::new());
-        // Block::new(header, transactions)
+        let header = BlockHeader::new(
+            previous_block_hash,
+            merkle_root,
+            timestamp,
+            difficulty,
+            nonce,
+        );
+        Block::new(header, transactions)
     }
 }

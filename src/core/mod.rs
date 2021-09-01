@@ -6,6 +6,7 @@ pub mod coolcoin;
 pub mod coolcoin_network;
 pub mod coolcoin_node;
 pub mod hash;
+pub mod miner;
 pub mod orphaned_blocks;
 pub mod orphaned_transaction_pool;
 pub mod peer_connection;
