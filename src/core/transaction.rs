@@ -1,3 +1,4 @@
+use crate::core::hash::hash;
 use crate::core::{Address, Coolcoin, Sha256};
 use serde::{Deserialize, Serialize};
 use serde_big_array::big_array;
@@ -26,6 +27,12 @@ impl TransactionId {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct OutputIndex(i32);
 
+impl Display for OutputIndex {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl OutputIndex {
     pub const fn new(index: i32) -> Self {
         Self(index)
@@ -50,6 +57,12 @@ pub struct TransactionInput {
     // 4 bytes. The number of the UTXO to be spent, first one is 0.
     output_index: OutputIndex,
     // TODO: Add unlocking script.
+}
+
+impl Display for TransactionInput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.utxo_id, self.output_index)
+    }
 }
 
 impl TransactionInput {
@@ -84,6 +97,12 @@ pub struct TransactionOutput {
     // TODO: Address is actually a locking script.
     to: Address,
     amount: Coolcoin,
+}
+
+impl Display for TransactionOutput {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.to, self.amount)
+    }
 }
 
 impl TransactionOutput {
@@ -160,9 +179,22 @@ impl Transaction {
     }
 
     fn hash_transaction_data(
-        _inputs: &Vec<TransactionInput>,
-        _outputs: &Vec<TransactionOutput>,
+        inputs: &Vec<TransactionInput>,
+        outputs: &Vec<TransactionOutput>,
     ) -> TransactionId {
-        todo!()
+        let data = format!(
+            "{}{}",
+            inputs
+                .iter()
+                .map(TransactionInput::to_string)
+                .collect::<Vec<String>>()
+                .join(""),
+            outputs
+                .iter()
+                .map(TransactionOutput::to_string)
+                .collect::<Vec<String>>()
+                .join("")
+        );
+        TransactionId(hash(data.as_bytes()))
     }
 }
