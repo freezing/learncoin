@@ -1,9 +1,10 @@
 use crate::core::block::{BlockHash, BlockHeader};
 use crate::core::miner::Miner;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
-use crate::core::{Address, Block, BlockValidator, Coolcoin, Transaction};
+use crate::core::{merkle_tree, Address, Block, BlockValidator, Coolcoin, Sha256, Transaction};
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::hash::Hash;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 struct BlockTreeEntry {
@@ -182,7 +183,11 @@ impl BlockTree {
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
         let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
         let previous_block_hash = BlockHash::new([0; 32]);
-        let merkle_root = todo!("Get merkle root for transactions");
+        let leaves = transactions
+            .iter()
+            .map(|tx| &tx.id().raw()[..])
+            .collect::<Vec<&[u8]>>();
+        let merkle_root = merkle_tree(&leaves);
         let timestamp = todo!("Get timestamp close to now");
         let difficulty = 1;
         let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)

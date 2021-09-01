@@ -1,4 +1,5 @@
-use crate::core::block::{BlockHash, BlockHeader, MerkleHash};
+use crate::core::block::{BlockHash, BlockHeader};
+use crate::core::hash::MerkleHash;
 use crate::core::{target_hash, Sha256};
 use std::cmp::Ordering;
 

@@ -21,6 +21,9 @@ impl TransactionId {
     pub fn new(data: Sha256) -> Self {
         Self(data)
     }
+    pub fn raw(&self) -> &Sha256 {
+        &self.0
+    }
 }
 
 /// 4 bytes representing the index of the transaction output.

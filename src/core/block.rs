@@ -1,21 +1,9 @@
-use crate::core::hash::hash;
+use crate::core::hash::{hash, MerkleHash};
 use crate::core::{Sha256, Transaction};
 use serde::{Deserialize, Serialize};
 use serde_big_array::big_array;
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-
-// TODO: Move to merkle_tree module later.
-big_array! { BigArray; }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MerkleHash(Vec<u8>);
-
-impl Display for MerkleHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0.as_slice()))
-    }
-}
 
 #[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BlockHash(Sha256);
