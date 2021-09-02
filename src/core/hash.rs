@@ -81,7 +81,7 @@ pub fn merkle_tree(leaves: &Vec<&[u8]>) -> MerkleHash {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::hash::hash;
+    use super::*;
     use crate::core::{as_hex, merkle_tree};
 
     #[test]

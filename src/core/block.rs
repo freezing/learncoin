@@ -16,6 +16,10 @@ impl BlockHash {
     pub fn as_slice(&self) -> &[u8] {
         &self.0
     }
+
+    pub fn raw(&self) -> &Sha256 {
+        &self.0
+    }
 }
 
 impl Display for BlockHash {

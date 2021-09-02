@@ -37,13 +37,9 @@ pub struct CoolcoinNode {
 impl CoolcoinNode {
     pub fn connect(network_params: NetworkParams) -> Result<Self, String> {
         let network = CoolcoinNetwork::connect(&network_params)?;
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as u32;
         Ok(Self {
             network,
-            blockchain_manager: BlockchainManager::new(current_time),
+            blockchain_manager: BlockchainManager::new(),
             outstanding_get_inventory_requests: Vec::new(),
             transaction_pool: TransactionPool::new(),
             utxo_pool: UtxoPool::new(),

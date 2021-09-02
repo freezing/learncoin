@@ -21,4 +21,4 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "coolcoin"
-path = "src/bin/coolcoin.rs"
+path = "src/bin/main.rs"

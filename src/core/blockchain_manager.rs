@@ -15,8 +15,8 @@ pub struct BlockchainManager {
 }
 
 impl BlockchainManager {
-    pub fn new(current_time: u32) -> Self {
-        let genesis_block = Self::genesis_block(current_time);
+    pub fn new() -> Self {
+        let genesis_block = Self::genesis_block();
         Self {
             block_tree: BlockTree::new(genesis_block),
             orphaned_blocks: OrphanedBlocks::new(),
@@ -50,7 +50,9 @@ impl BlockchainManager {
     pub fn exists(&self, block: &Block) -> bool {
         self.orphaned_blocks.exists(block) || self.block_tree.exists(&block.header().hash())
     }
-    fn genesis_block(current_time: u32) -> Block {
+    pub fn genesis_block() -> Block {
+        // 02 Sep 2021 at ~08:58
+        let timestamp = 1630569467;
         const GENESIS_REWARD: Coolcoin = Coolcoin::new(50);
         // TODO: Generate genesis address.
         let genesis_address = Address::new([0; 32]);
@@ -65,13 +67,13 @@ impl BlockchainManager {
             .collect::<Vec<&[u8]>>();
         let merkle_root = merkle_tree(&leaves);
         let difficulty = 1;
-        let nonce = Miner::pow(&previous_block_hash, &merkle_root, current_time, difficulty)
+        let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)
             .expect("can't find nonce for genesis block");
 
         let header = BlockHeader::new(
             previous_block_hash,
             merkle_root,
-            current_time,
+            timestamp,
             difficulty,
             nonce,
         );
