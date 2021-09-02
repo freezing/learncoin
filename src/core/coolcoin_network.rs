@@ -11,7 +11,14 @@ pub struct NetworkParams {
     peers: Vec<String>,
 }
 
-impl NetworkParams {}
+impl NetworkParams {
+    pub fn new(server_address: String, peer_addresses: Vec<String>) -> Self {
+        Self {
+            server_address,
+            peers: peer_addresses,
+        }
+    }
+}
 
 pub struct CoolcoinNetwork {
     peer_connections: Vec<(String, PeerConnection)>,

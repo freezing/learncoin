@@ -34,8 +34,7 @@ pub struct BlockTree {
 
 impl BlockTree {
     // TODO: Take genesis_block as parameter.
-    pub fn new() -> Self {
-        let genesis_block = Self::genesis_block();
+    pub fn new(genesis_block: Block) -> Self {
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -172,34 +171,5 @@ impl BlockTree {
                 total_work: new_block_total_work,
             };
         }
-    }
-
-    fn genesis_block() -> Block {
-        const GENESIS_REWARD: Coolcoin = Coolcoin::new(50);
-        // TODO: Generate genesis address.
-        let genesis_address = Address::new([0; 32]);
-        let locktime = 0;
-        let inputs = vec![TransactionInput::new_coinbase()];
-        let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
-        let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
-        let previous_block_hash = BlockHash::new([0; 32]);
-        let leaves = transactions
-            .iter()
-            .map(|tx| &tx.id().raw()[..])
-            .collect::<Vec<&[u8]>>();
-        let merkle_root = merkle_tree(&leaves);
-        let timestamp = todo!("Get timestamp close to now");
-        let difficulty = 1;
-        let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)
-            .expect("can't find nonce for genesis block");
-
-        let header = BlockHeader::new(
-            previous_block_hash,
-            merkle_root,
-            timestamp,
-            difficulty,
-            nonce,
-        );
-        Block::new(header, transactions)
     }
 }

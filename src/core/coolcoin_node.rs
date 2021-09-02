@@ -1,4 +1,5 @@
 use crate::core::block::BlockHash;
+use crate::core::coolcoin_network::NetworkParams;
 use crate::core::peer_connection::PeerMessage;
 use crate::core::{
     Block, BlockchainManager, ChainContext, CoolcoinNetwork, Transaction, TransactionPool,
@@ -34,10 +35,15 @@ pub struct CoolcoinNode {
 }
 
 impl CoolcoinNode {
-    pub fn connect(network: CoolcoinNetwork) -> Result<Self, String> {
+    pub fn connect(network_params: NetworkParams) -> Result<Self, String> {
+        let network = CoolcoinNetwork::connect(&network_params)?;
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
         Ok(Self {
             network,
-            blockchain_manager: BlockchainManager::new(),
+            blockchain_manager: BlockchainManager::new(current_time),
             outstanding_get_inventory_requests: Vec::new(),
             transaction_pool: TransactionPool::new(),
             utxo_pool: UtxoPool::new(),
