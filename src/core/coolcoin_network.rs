@@ -124,7 +124,6 @@ impl CoolcoinNetwork {
     }
 
     pub fn send_to(&mut self, receiver: &str, message: PeerMessage) -> Result<bool, String> {
-        println!("Network send to: {} {:?}", receiver, message);
         match self
             .peer_connections
             .iter_mut()
