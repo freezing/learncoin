@@ -99,6 +99,7 @@ impl CoolcoinNode {
         message: PeerMessage,
         current_time: u32,
     ) -> Result<(), String> {
+        println!("Processed on message: {:?}", message);
         match message {
             PeerMessage::GetInventory() => self.on_get_inventory(sender),
             PeerMessage::ResponseInventory(inventory) => {
@@ -112,6 +113,7 @@ impl CoolcoinNode {
     }
 
     fn on_get_inventory(&mut self, sender: &str) -> Result<(), String> {
+        println!("on get inventory: {}", sender);
         let inventory = self.blockchain_manager.block_tree().active_blockchain();
         match self
             .network

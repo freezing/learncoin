@@ -63,7 +63,9 @@ impl BlockTree {
         let mut current_entry = Some(self.tree.get(&self.active_block.hash).unwrap());
         while let Some(tree_entry) = current_entry {
             blockchain.push(tree_entry.block.clone());
-            current_entry = self.tree.get(&tree_entry.block.header().hash());
+            current_entry = self
+                .tree
+                .get(&tree_entry.block.header().previous_block_hash());
         }
         blockchain.into_iter().rev().collect()
     }
