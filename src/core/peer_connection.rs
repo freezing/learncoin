@@ -60,11 +60,13 @@ impl PeerConnection {
         // Read header then read message.
         let header_size = std::mem::size_of::<PeerMessageHeader>();
         let mut header_buffer = Vec::with_capacity(header_size);
+        header_buffer.resize(header_size, 0);
 
         let header: PeerMessageHeader = match &self.last_header {
             Some(header) => header.clone(),
             None => match self.tcp_stream.read(&mut header_buffer[..]) {
                 Ok(read_bytes) => {
+                    // TODO: Handle shutdown and malicious peers.
                     assert_eq!(read_bytes, header_size);
                     bincode::deserialize::<PeerMessageHeader>(&header_buffer).unwrap()
                 }
@@ -76,6 +78,7 @@ impl PeerConnection {
         };
 
         let mut payload_buffer = Vec::with_capacity(header.payload_size as usize);
+        payload_buffer.resize(header.payload_size as usize, 0);
         let payload = match self.tcp_stream.read(&mut payload_buffer[..]) {
             Ok(read_bytes) => {
                 assert_eq!(read_bytes as u32, header.payload_size);
@@ -112,8 +115,13 @@ impl PeerConnection {
         let header_size = std::mem::size_of::<PeerMessageHeader>();
         let payload_size = bincode::serialized_size(&payload).unwrap() as usize;
         let total_size = header_size + payload_size;
+        println!(
+            "header={} payload={} total={}",
+            header_size, payload_size, total_size
+        );
 
         let mut buffer = Vec::with_capacity(total_size as usize);
+        buffer.resize(total_size, 0);
         bincode::serialize_into(
             &mut buffer[..header_size],
             &PeerMessageHeader {

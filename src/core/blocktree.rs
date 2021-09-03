@@ -40,7 +40,6 @@ impl BlockTree {
             .unwrap()
             // Bitcoin timestamp runs out in year 2106.
             .as_secs() as u32;
-        BlockValidator::validate_no_context(&genesis_block, current_time).unwrap();
         let mut tree = HashMap::new();
         let genesis_hash = genesis_block.header().hash();
         tree.insert(
