@@ -46,9 +46,20 @@ pub fn hash(data: &[u8]) -> Sha256 {
 /// However, for learning purposes, we are going to implement a simpler version which
 /// returns a hash with bit 1 set at index that equals difficulty - 1.
 /// I.e. this means that difficulty represents how many leading zeroes the block hash must have.
-pub fn target_hash(difficulty: u32) -> BlockHash {
-    let mut hash = [0; 32];
-    hash[(difficulty - 1) as usize] = 1;
+pub fn target_hash(n_zero_bits: u32) -> BlockHash {
+    let mut hash = [0xff; 32];
+
+    let num_zero_bytes = (n_zero_bits / 8) as usize;
+    for i in 0..num_zero_bytes {
+        hash[i] = 0;
+    }
+
+    let remainder = 8 - (n_zero_bits % 8);
+    if remainder == 8 {
+        return BlockHash::new(hash);
+    }
+
+    hash[num_zero_bytes] = (1 << remainder) - 1;
     BlockHash::new(hash)
 }
 
@@ -117,6 +128,34 @@ mod tests {
         assert_eq!(
             as_hex(merkle_root.raw()),
             "be1257a768ca532e01caed9b6cdc420a52f3de14dd5adcb353066cf581334c35"
+        );
+    }
+
+    #[test]
+    fn target_hash_test() {
+        assert_eq!(
+            as_hex(target_hash(0).raw()),
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        assert_eq!(
+            as_hex(target_hash(4).raw()),
+            "0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        assert_eq!(
+            as_hex(target_hash(8).raw()),
+            "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        assert_eq!(
+            as_hex(target_hash(12).raw()),
+            "000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        assert_eq!(
+            as_hex(target_hash(16).raw()),
+            "0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        );
+        assert_eq!(
+            as_hex(target_hash(20).raw()),
+            "00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
     }
 }

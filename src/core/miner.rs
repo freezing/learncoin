@@ -13,7 +13,6 @@ impl Miner {
         difficulty_target: u32,
     ) -> Option<u32> {
         let target_hash = target_hash(difficulty_target);
-        println!("Target hash: {}", target_hash);
         let mut nonce = 0 as u32;
         loop {
             if Self::test_nonce(
@@ -51,8 +50,8 @@ impl Miner {
             nonce,
         );
         match block.hash().cmp(target_hash) {
-            Ordering::Less => true,
-            Ordering::Equal | Ordering::Greater => false,
+            Ordering::Less | Ordering::Equal => true,
+            Ordering::Greater => false,
         }
     }
 }
@@ -71,13 +70,72 @@ mod tests {
         )
     }
     #[test]
-    fn pow_difficulty_4() {
+    fn pow_difficulty_1_leading_zeroes() {
         let block_hash = pow_difficulty(4);
         assert_eq!(
             block_hash,
-            "00b505a7e489ca039fe9197b7e7217e03f4c3003e9418266d3c1eb2f373b276f"
+            "00a13221f144959b8665fdab0921577255ec34df40869f2139535599094de23a"
         )
     }
+
+    #[test]
+    fn pow_difficulty_2_leading_zeroes() {
+        let block_hash = pow_difficulty(8);
+        assert_eq!(
+            block_hash,
+            "0000a8bc60c45f850d65260794f72edad849cc878388ba7f8f5cb26ba4bce463"
+        )
+    }
+
+    #[test]
+    fn pow_difficulty_4_leading_zeroes() {
+        let block_hash = pow_difficulty(16);
+        assert_eq!(
+            block_hash,
+            "000000746e4dd118ca13ecb03b47f8b35deaa4c5fa933b850e9ff8cf9b785779"
+        )
+    }
+
+    #[test]
+    fn pow_difficulty_7_leading_zeroes() {
+        let block_hash = pow_difficulty(28);
+        assert_eq!(
+            block_hash,
+            "008a3fefacbe3cedc3f2d336d2f6d8684f440935888d3f818a1e9edd02619f36"
+        )
+    }
+
+    #[test]
+    fn probability_test() {
+        const DIFFICULTY: u32 = 7;
+        const BLOCKS_TO_MINE: u64 = 100000;
+        const EXPECTED_PER_BLOCK: u64 = 1 << DIFFICULTY;
+        const EXPECTED_TOTAL_HASHES: u64 = EXPECTED_PER_BLOCK * BLOCKS_TO_MINE;
+        const EXPECTED_TOTAL_HASHES_ERROR: u64 = EXPECTED_TOTAL_HASHES / 20; // Within 5%
+        let genesis = BlockchainManager::genesis_block();
+        let header = genesis.header();
+
+        let mut total_nonces = 0 as u64;
+        for timestamp in 0..(BLOCKS_TO_MINE as u32) {
+            let nonce = Miner::pow(
+                header.previous_block_hash(),
+                header.merkle_root(),
+                timestamp,
+                DIFFICULTY,
+            )
+            .unwrap();
+            total_nonces += nonce as u64;
+        }
+
+        println!("Data: {} {}", EXPECTED_TOTAL_HASHES, total_nonces);
+        let diff = if EXPECTED_TOTAL_HASHES >= total_nonces {
+            EXPECTED_TOTAL_HASHES - total_nonces
+        } else {
+            total_nonces - EXPECTED_TOTAL_HASHES
+        };
+        assert!(diff < EXPECTED_TOTAL_HASHES_ERROR);
+    }
+    // TODO: Probability test that roughly every 1/D hashes result in a block.
 
     fn pow_difficulty(difficulty: u32) -> String {
         // Use genesis block to avoid manually constructing transactions and other data.
