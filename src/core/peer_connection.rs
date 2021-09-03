@@ -1,15 +1,23 @@
 use crate::core::block::BlockHash;
 use crate::core::{Block, Transaction};
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
+
+macro_rules! log_info {
+    () => (println!());
+    ($($arg:tt)*) => ({
+        println!($($arg)*);
+    })
+}
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 struct PeerMessageHeader {
     payload_size: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum PeerMessage {
     GetInventory(),
     ResponseInventory(Vec<Block>),
@@ -84,6 +92,7 @@ impl PeerConnection {
             }
         };
         self.last_header = None;
+        log_info!("Recv [{}] {:?}", self.peer_address, payload);
         Ok(Some(payload))
     }
 
@@ -112,10 +121,13 @@ impl PeerConnection {
             },
         )
         .unwrap();
-        bincode::serialize_into(&mut buffer[header_size..], payload).unwrap();
+        bincode::serialize_into(&mut buffer[header_size..], &payload).unwrap();
 
         match self.tcp_stream.write(&buffer[..]) {
-            Ok(_) => Ok(true),
+            Ok(_) => {
+                log_info!("Send [{}] {:?}", self.peer_address, payload);
+                Ok(true)
+            }
             Err(e) => match e.kind() {
                 ErrorKind::WouldBlock => Ok(false),
                 _ => Err(e.to_string()),
