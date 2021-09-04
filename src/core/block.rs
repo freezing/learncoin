@@ -14,7 +14,7 @@ impl BlockHash {
     }
 
     pub fn as_slice(&self) -> &[u8] {
-        &self.0
+        &self.0.bytes()[..]
     }
 
     pub fn raw(&self) -> &Sha256 {
@@ -24,7 +24,7 @@ impl BlockHash {
 
 impl Display for BlockHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", crate::core::as_hex(&self.0))
+        write!(f, "{}", crate::core::as_hex(&self.0.bytes()[..]))
     }
 }
 

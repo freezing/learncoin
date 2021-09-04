@@ -12,7 +12,6 @@ pub struct TransactionId(Sha256);
 
 impl Display for TransactionId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        // TODO: Print as hex.
         write!(f, "{:#?}", self.0)
     }
 }
@@ -43,7 +42,7 @@ impl OutputIndex {
 }
 
 // Set all bits to 0.
-const COINBASE_UTXO_ID: TransactionId = TransactionId([0; 32]);
+const COINBASE_UTXO_ID: TransactionId = TransactionId(Sha256::new([0; 32]));
 // Set all bits to 1.
 const COINBASE_OUTPUT_INDEX: OutputIndex = OutputIndex::new(-1);
 

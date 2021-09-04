@@ -95,7 +95,11 @@ impl PeerConnection {
             }
         };
         self.last_header = None;
-        log_info!("Recv [{}] {:?}", self.peer_address, payload);
+        log_info!(
+            "Recv [{}] {}",
+            self.peer_address,
+            serde_json::to_string_pretty(&payload).unwrap()
+        );
         Ok(Some(payload))
     }
 
@@ -115,10 +119,6 @@ impl PeerConnection {
         let header_size = std::mem::size_of::<PeerMessageHeader>();
         let payload_size = bincode::serialized_size(&payload).unwrap() as usize;
         let total_size = header_size + payload_size;
-        println!(
-            "header={} payload={} total={}",
-            header_size, payload_size, total_size
-        );
 
         let mut buffer = Vec::with_capacity(total_size as usize);
         buffer.resize(total_size, 0);
@@ -133,7 +133,11 @@ impl PeerConnection {
 
         match self.tcp_stream.write(&buffer[..]) {
             Ok(_) => {
-                log_info!("Send [{}] {:?}", self.peer_address, payload);
+                log_info!(
+                    "Send [{}] {}",
+                    self.peer_address,
+                    serde_json::to_string_pretty(&payload).unwrap()
+                );
                 Ok(true)
             }
             Err(e) => match e.kind() {

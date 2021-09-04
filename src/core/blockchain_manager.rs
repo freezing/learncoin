@@ -3,7 +3,7 @@ use crate::core::miner::Miner;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
 use crate::core::{
     merkle_tree, Address, Block, BlockTree, BlockValidator, ChainContext, Coolcoin, OrphanedBlocks,
-    Transaction, TransactionPool, UtxoContext, UtxoPool,
+    Sha256, Transaction, TransactionPool, UtxoContext, UtxoPool,
 };
 
 /// Responsible for processing new blocks and new transactions from the network.
@@ -55,15 +55,15 @@ impl BlockchainManager {
         let timestamp = 1630569467;
         const GENESIS_REWARD: Coolcoin = Coolcoin::new(50);
         // TODO: Generate genesis address.
-        let genesis_address = Address::new([0; 32]);
+        let genesis_address = Address::new(Sha256::new([0; 32]));
         let locktime = 0;
         let inputs = vec![TransactionInput::new_coinbase()];
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
         let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
-        let previous_block_hash = BlockHash::new([0; 32]);
+        let previous_block_hash = BlockHash::new(Sha256::new([0; 32]));
         let leaves = transactions
             .iter()
-            .map(|tx| &tx.id().raw()[..])
+            .map(|tx| &tx.id().raw().bytes()[..])
             .collect::<Vec<&[u8]>>();
         let merkle_root = merkle_tree(&leaves);
         let difficulty = 1;

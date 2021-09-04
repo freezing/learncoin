@@ -1,10 +1,80 @@
 use crate::core::block::BlockHash;
 use crate::core::Transaction;
-use serde::{Deserialize, Serialize};
+use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::Digest;
 use std::fmt::{Display, Formatter};
 
-pub type Sha256 = [u8; 32];
+#[derive(Copy, Clone, Debug, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub struct Sha256([u8; 32]);
+
+impl Sha256 {
+    pub const fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+    pub fn bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl Serialize for Sha256 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(as_hex(self.bytes()).as_str())
+    }
+}
+
+struct StringVisitor;
+
+impl<'de> Visitor<'de> for StringVisitor {
+    type Value = Sha256;
+
+    fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
+        formatter.write_str("a string")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        match hex::decode(&v) {
+            Ok(bytes) => {
+                let mut sha = [0; 32];
+                if bytes.len() == 32 {
+                    for i in 0..32 {
+                        sha[i] = *bytes.get(i).unwrap();
+                    }
+                    Ok(Sha256::new(sha))
+                } else {
+                    Err(E::custom(format!(
+                        "Invalid sha length. Expected: {} but got: {} in: {}",
+                        32,
+                        bytes.len(),
+                        v
+                    )))
+                }
+            }
+            Err(e) => Err(E::custom(e.to_string())),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Sha256 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(StringVisitor)
+    }
+}
+
+impl Display for Sha256 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", as_hex(&self.bytes()[..]))
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MerkleHash(Sha256);
@@ -21,12 +91,12 @@ impl MerkleHash {
 
 impl Display for MerkleHash {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
+        write!(f, "{}", hex::encode(self.0.bytes()))
     }
 }
 
-pub fn as_hex(sha: &Sha256) -> String {
-    hex::encode(sha)
+pub fn as_hex(bytes: &[u8]) -> String {
+    hex::encode(bytes)
 }
 
 pub fn hash(data: &[u8]) -> Sha256 {
@@ -38,7 +108,7 @@ pub fn hash(data: &[u8]) -> Sha256 {
     for (i, byte) in result.iter().enumerate() {
         output[i] = *byte;
     }
-    output
+    Sha256::new(output)
 }
 
 /// In practice, the target hash is calculated in a more complex way:
@@ -56,11 +126,11 @@ pub fn target_hash(n_zero_bits: u32) -> BlockHash {
 
     let remainder = 8 - (n_zero_bits % 8);
     if remainder == 8 {
-        return BlockHash::new(hash);
+        return BlockHash::new(Sha256::new(hash));
     }
 
     hash[num_zero_bytes] = (1 << remainder) - 1;
-    BlockHash::new(hash)
+    BlockHash::new(Sha256::new(hash))
 }
 
 pub fn merkle_tree(leaves: &Vec<&[u8]>) -> MerkleHash {
@@ -80,8 +150,8 @@ pub fn merkle_tree(leaves: &Vec<&[u8]>) -> MerkleHash {
         for i in (0..hashes.len()).step_by(2) {
             let lhs = hashes.get(i).unwrap();
             let rhs = hashes.get(i + 1).unwrap();
-            let mut concat = lhs.iter().map(|x| *x).collect::<Vec<u8>>();
-            concat.extend_from_slice(rhs);
+            let mut concat = lhs.bytes().iter().map(|x| *x).collect::<Vec<u8>>();
+            concat.extend_from_slice(rhs.bytes());
             next_level_hashes.push(hash(&concat))
         }
 
