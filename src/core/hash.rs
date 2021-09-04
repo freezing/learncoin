@@ -1,5 +1,6 @@
 use crate::core::block::BlockHash;
 use crate::core::Transaction;
+use hex::FromHexError;
 use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::Digest;
@@ -39,25 +40,7 @@ impl<'de> Visitor<'de> for StringVisitor {
     where
         E: Error,
     {
-        match hex::decode(&v) {
-            Ok(bytes) => {
-                let mut sha = [0; 32];
-                if bytes.len() == 32 {
-                    for i in 0..32 {
-                        sha[i] = *bytes.get(i).unwrap();
-                    }
-                    Ok(Sha256::new(sha))
-                } else {
-                    Err(E::custom(format!(
-                        "Invalid sha length. Expected: {} but got: {} in: {}",
-                        32,
-                        bytes.len(),
-                        v
-                    )))
-                }
-            }
-            Err(e) => Err(E::custom(e.to_string())),
-        }
+        from_hex(v).map_err(|e| E::custom(e))
     }
 }
 
@@ -97,6 +80,27 @@ impl Display for MerkleHash {
 
 pub fn as_hex(bytes: &[u8]) -> String {
     hex::encode(bytes)
+}
+pub fn from_hex(s: &str) -> Result<Sha256, String> {
+    match hex::decode(&s) {
+        Ok(bytes) => {
+            let mut sha = [0; 32];
+            if bytes.len() == 32 {
+                for i in 0..32 {
+                    sha[i] = *bytes.get(i).unwrap();
+                }
+                Ok(Sha256::new(sha))
+            } else {
+                Err(format!(
+                    "Invalid sha length. Expected: {} but got: {} in: {}",
+                    32,
+                    bytes.len(),
+                    s
+                ))
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 pub fn hash(data: &[u8]) -> Sha256 {

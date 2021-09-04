@@ -21,24 +21,28 @@ struct PeerMessageHeader {
 pub enum PeerMessage {
     GetInventory(),
     ResponseInventory(Vec<Block>),
+    GetBlock(BlockHash),
+    ResponseBlock(Option<Block>),
     RelayBlock(Block),
     RelayTransaction(Transaction),
 }
 
 pub struct PeerConnection {
     peer_address: String,
+    enable_logging: bool,
     tcp_stream: TcpStream,
     last_header: Option<PeerMessageHeader>,
 }
 
 impl PeerConnection {
-    pub fn connect(peer_address: String) -> Result<Self, String> {
+    pub fn connect(peer_address: String, enable_logging: bool) -> Result<Self, String> {
         let mut tcp_stream = TcpStream::connect(&peer_address).map_err(|e| e.to_string())?;
         tcp_stream
             .set_nonblocking(true)
             .map_err(|e| e.to_string())?;
         Ok(Self {
             peer_address,
+            enable_logging,
             tcp_stream,
             last_header: None,
         })
@@ -48,9 +52,14 @@ impl PeerConnection {
         &self.peer_address
     }
 
-    pub fn from_tcp_stream(address: SocketAddr, tcp_stream: TcpStream) -> Self {
+    pub fn from_tcp_stream(
+        address: SocketAddr,
+        tcp_stream: TcpStream,
+        enable_logging: bool,
+    ) -> Self {
         Self {
             peer_address: address.to_string(),
+            enable_logging,
             tcp_stream,
             last_header: None,
         }
@@ -65,12 +74,20 @@ impl PeerConnection {
         let header: PeerMessageHeader = match &self.last_header {
             Some(header) => header.clone(),
             None => match self.tcp_stream.read(&mut header_buffer[..]) {
+                Ok(0) => {
+                    // TcpStream::read returns zero when the connection is shutdown.
+                    return Err(format!(
+                        "Connection to peer: {} has been lost.",
+                        self.peer_address
+                    ));
+                }
                 Ok(read_bytes) => {
-                    // TODO: Handle shutdown and malicious peers.
+                    // TODO: Handle malicious peers.
                     assert_eq!(read_bytes, header_size);
                     bincode::deserialize::<PeerMessageHeader>(&header_buffer).unwrap()
                 }
                 Err(e) => match e.kind() {
+                    // TODO: Consider dropping the peer if it would block.
                     ErrorKind::WouldBlock => return Ok(None),
                     _ => return Err(e.to_string()),
                 },
@@ -95,11 +112,14 @@ impl PeerConnection {
             }
         };
         self.last_header = None;
-        log_info!(
-            "Recv [{}] {}",
-            self.peer_address,
-            serde_json::to_string_pretty(&payload).unwrap()
-        );
+        if self.enable_logging {
+            log_info!(
+                "Recv [{}] {}",
+                self.peer_address,
+                serde_json::to_string_pretty(&payload).unwrap()
+            );
+        }
+
         Ok(Some(payload))
     }
 
@@ -133,11 +153,13 @@ impl PeerConnection {
 
         match self.tcp_stream.write(&buffer[..]) {
             Ok(_) => {
-                log_info!(
-                    "Send [{}] {}",
-                    self.peer_address,
-                    serde_json::to_string_pretty(&payload).unwrap()
-                );
+                if self.enable_logging {
+                    log_info!(
+                        "Send [{}] {}",
+                        self.peer_address,
+                        serde_json::to_string_pretty(&payload).unwrap()
+                    );
+                }
                 Ok(true)
             }
             Err(e) => match e.kind() {

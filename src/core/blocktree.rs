@@ -33,7 +33,6 @@ pub struct BlockTree {
 }
 
 impl BlockTree {
-    // TODO: Take genesis_block as parameter.
     pub fn new(genesis_block: Block) -> Self {
         let current_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)

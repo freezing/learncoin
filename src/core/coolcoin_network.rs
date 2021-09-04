@@ -9,19 +9,23 @@ pub struct NetworkParams {
     server_address: String,
     // List of peer addresses to connect to.
     peers: Vec<String>,
+    // Whether or not the messages that are sent and received through the network are logged.
+    enable_logging: bool,
 }
 
 impl NetworkParams {
-    pub fn new(server_address: String, peer_addresses: Vec<String>) -> Self {
+    pub fn new(server_address: String, peer_addresses: Vec<String>, enable_logging: bool) -> Self {
         Self {
             server_address,
             peers: peer_addresses,
+            enable_logging,
         }
     }
 }
 
 pub struct CoolcoinNetwork {
     peer_connections: Vec<(String, PeerConnection)>,
+    enable_logging: bool,
     tcp_listener: TcpListener,
     send_queue: Vec<(String, PeerMessage)>,
 }
@@ -35,13 +39,14 @@ impl CoolcoinNetwork {
 
         let mut peer_connections = Vec::new();
         for address in &params.peers {
-            let peer_connection = PeerConnection::connect(address.clone())?;
+            let peer_connection = PeerConnection::connect(address.clone(), params.enable_logging)?;
             peer_connections.push((address.clone(), peer_connection));
         }
         Ok(Self {
             peer_connections,
             tcp_listener,
             send_queue: vec![],
+            enable_logging: params.enable_logging,
         })
     }
 
@@ -75,10 +80,7 @@ impl CoolcoinNetwork {
                     }
                 }
                 Err(e) => {
-                    eprintln!(
-                        "Got an error while reading from peer: {}. Error: {}",
-                        sender, e
-                    );
+                    eprintln!("{}", e);
                     to_drop.insert(sender.clone());
                     continue;
                 }
@@ -135,12 +137,19 @@ impl CoolcoinNetwork {
     }
 
     fn on_new_peer_connected(&mut self, socket_address: SocketAddr, tcp_stream: TcpStream) {
-        let peer_connection = PeerConnection::from_tcp_stream(socket_address, tcp_stream);
+        let peer_connection =
+            PeerConnection::from_tcp_stream(socket_address, tcp_stream, self.enable_logging);
         self.peer_connections
             .push((peer_connection.address().to_string(), peer_connection));
     }
 
     fn drop_connection(&mut self, sender: &str) {
-        // TODO: Drop connection and try to find another one.
+        for i in 0..self.peer_connections.len() {
+            let (peer_address, _) = self.peer_connections.get(i).unwrap();
+            if peer_address == sender {
+                self.peer_connections.remove(i);
+                break;
+            }
+        }
     }
 }

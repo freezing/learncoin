@@ -6,14 +6,11 @@ use std::error::Error;
 pub struct DaemonCliOptions {
     server: String,
     peers: Vec<String>,
+    enable_logging: bool,
 }
 
 impl DaemonCliOptions {
     pub fn parse(matches: &ArgMatches) -> Result<Self, Box<dyn Error>> {
-        // let peers = match matches.values_of_t::<String>("peers") {
-        //     Ok(peers) => peers,
-        //     None => vec![],
-        // };
         let peers = matches
             .values_of("peers")
             .map(|v| v.collect())
@@ -21,10 +18,12 @@ impl DaemonCliOptions {
             .iter()
             .map(|s| s.to_string())
             .collect();
+        let enable_logging = matches.is_present("enable_logging");
 
         Ok(Self {
             server: matches.value_of("server").unwrap().to_string(),
             peers,
+            enable_logging,
         })
     }
 }
@@ -52,11 +51,22 @@ pub fn daemon_command() -> App<'static> {
                 .default_values(vec![].as_slice())
                 .required(false),
         )
+        .arg(
+            Arg::new("enable_logging")
+                .long("enable_logging")
+                .about("If true, the messages sent and received via the network are logged.")
+                .takes_value(false)
+                .required(false),
+        )
 }
 
 pub fn run_daemon(options: &DaemonCliOptions) -> Result<(), Box<dyn Error>> {
     println!("Starting full node!");
-    let network_params = NetworkParams::new(options.server.clone(), options.peers.clone());
+    let network_params = NetworkParams::new(
+        options.server.clone(),
+        options.peers.clone(),
+        options.enable_logging,
+    );
     let mut node = CoolcoinNode::connect(network_params)?;
     node.run();
     Ok(())

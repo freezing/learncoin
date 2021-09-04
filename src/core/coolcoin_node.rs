@@ -108,7 +108,22 @@ impl CoolcoinNode {
             PeerMessage::RelayTransaction(transaction) => {
                 self.on_relay_transaction(sender, transaction)
             }
+            PeerMessage::GetBlock(block_hash) => self.on_get_block(sender, block_hash),
+            PeerMessage::ResponseBlock(block) => {
+                todo!()
+            }
         }
+    }
+
+    fn on_get_block(&mut self, sender: &str, block_hash: BlockHash) -> Result<(), String> {
+        let block = self
+            .blockchain_manager
+            .block_tree()
+            .get(&block_hash)
+            .map(|b| b.clone());
+        self.network
+            .send_to(sender, PeerMessage::ResponseBlock(block))?;
+        Ok(())
     }
 
     fn on_get_inventory(&mut self, sender: &str) -> Result<(), String> {
