@@ -54,8 +54,7 @@ impl BlockchainManager {
         // 02 Sep 2021 at ~08:58
         let timestamp = 1630569467;
         const GENESIS_REWARD: Coolcoin = Coolcoin::new(50);
-        // TODO: Generate genesis address.
-        let genesis_address = Address::new(Sha256::new([0; 32]));
+        let genesis_address = Address::new("genesis_wallet_address".to_string());
         let locktime = 0;
         let inputs = vec![TransactionInput::new_coinbase()];
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];

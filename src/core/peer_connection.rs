@@ -23,6 +23,8 @@ pub enum PeerMessage {
     ResponseInventory(Vec<Block>),
     GetBlock(BlockHash),
     ResponseBlock(Option<Block>),
+    SendTransaction(Transaction),
+    ResponseTransaction(),
     RelayBlock(Block),
     RelayTransaction(Transaction),
 }

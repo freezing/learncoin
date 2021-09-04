@@ -109,7 +109,13 @@ impl CoolcoinNode {
                 self.on_relay_transaction(sender, transaction)
             }
             PeerMessage::GetBlock(block_hash) => self.on_get_block(sender, block_hash),
-            PeerMessage::ResponseBlock(block) => {
+            PeerMessage::ResponseBlock(_block) => {
+                todo!()
+            }
+            PeerMessage::SendTransaction(transaction) => {
+                self.on_send_transaction(sender, transaction)
+            }
+            PeerMessage::ResponseTransaction() => {
                 todo!()
             }
         }
@@ -123,6 +129,17 @@ impl CoolcoinNode {
             .map(|b| b.clone());
         self.network
             .send_to(sender, PeerMessage::ResponseBlock(block))?;
+        Ok(())
+    }
+
+    fn on_send_transaction(
+        &mut self,
+        sender: &str,
+        transaction: Transaction,
+    ) -> Result<(), String> {
+        self.on_new_transaction(sender, transaction)?;
+        self.network
+            .send_to(sender, PeerMessage::ResponseTransaction())?;
         Ok(())
     }
 
@@ -204,6 +221,10 @@ impl CoolcoinNode {
         sender: &str,
         transaction: Transaction,
     ) -> Result<(), String> {
+        self.on_new_transaction(sender, transaction)
+    }
+
+    fn on_new_transaction(&mut self, sender: &str, transaction: Transaction) -> Result<(), String> {
         // TODO: If validation fails, we should disconnect the peers and do not insert it.
         self.transaction_pool.insert(transaction.clone());
         self.network.multicast(

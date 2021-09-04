@@ -95,6 +95,7 @@ impl BlockHeader {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Block {
+    id: BlockHash,
     header: BlockHeader,
     transactions: Vec<Transaction>,
 }
@@ -102,6 +103,7 @@ pub struct Block {
 impl Block {
     pub fn new(header: BlockHeader, transactions: Vec<Transaction>) -> Self {
         Self {
+            id: header.hash(),
             header,
             transactions,
         }
