@@ -1,12 +1,15 @@
 use crate::core::block::BlockHash;
 use crate::core::coolcoin_network::NetworkParams;
+use crate::core::miner::{Miner, MinerResponse, MinerRequest};
 use crate::core::peer_connection::PeerMessage;
 use crate::core::{
     Block, BlockchainManager, ChainContext, CoolcoinNetwork, Transaction, TransactionPool,
     UtxoContext, UtxoPool,
 };
 use std::net::TcpStream;
+use std::sync::mpsc::TryRecvError;
 use std::sync::Arc;
+use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -47,11 +50,14 @@ impl CoolcoinNode {
     }
 
     pub fn run(mut self) {
+        todo!("Choose transactions for the miner");
         // If we can't send messages to all nodes immediately, then there is no point in trying
         // to recover since this is part of the startup.
         // It is okay for the process to fail since retrying would mean rerunning the process.
         // Of course, in production like implementation we would handle that in code.
         self.network.broadcast(PeerMessage::GetInventory()).unwrap();
+
+        let mut miner = Miner::start_async();
 
         loop {
             let current_time = SystemTime::now()
@@ -89,7 +95,32 @@ impl CoolcoinNode {
                     }
                 }
             }
-            sleep(Duration::from_millis(100));
+
+            // Update miner and check if there are any new blocks.
+            match miner.read() {
+                Ok(MinerResponse::None(request)) => {
+                    println!("Miner failed to mine a block for request: {:#?}", request);
+                }
+                Ok(MinerResponse::Mined(block)) => {
+                    println!(
+                        "Miner has successfully mined a new block: {}",
+                        serde_json::to_string_pretty(&block).unwrap()
+                    );
+                    self.process_new_block_and_update_active_blockchain(block);
+                }
+                Err(TryRecvError::Empty) => {
+                    continue;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    eprintln!("Miner has been disconnected!")
+                }
+            }
+
+            if miner.num_outstanding_requests() == 0 {
+                miner.send(MinerRequest::)
+            }
+
+            thread::sleep(Duration::from_millis(100));
         }
     }
 

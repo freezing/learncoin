@@ -1,4 +1,5 @@
 use crate::core::block::{BlockHash, BlockHeader};
+use crate::core::hash::merkle_tree_from_transactions;
 use crate::core::miner::Miner;
 use crate::core::transaction::{TransactionInput, TransactionOutput};
 use crate::core::{
@@ -60,11 +61,7 @@ impl BlockchainManager {
         let outputs = vec![TransactionOutput::new(genesis_address, GENESIS_REWARD)];
         let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
         let previous_block_hash = BlockHash::new(Sha256::new([0; 32]));
-        let leaves = transactions
-            .iter()
-            .map(|tx| &tx.id().raw().bytes()[..])
-            .collect::<Vec<&[u8]>>();
-        let merkle_root = merkle_tree(&leaves);
+        let merkle_root = merkle_tree_from_transactions(&transactions);
         let difficulty = 1;
         let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)
             .expect("can't find nonce for genesis block");

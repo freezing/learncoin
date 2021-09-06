@@ -1,11 +1,128 @@
-use crate::core::block::{BlockHash, BlockHeader};
-use crate::core::hash::MerkleHash;
-use crate::core::{target_hash, Sha256};
 use std::cmp::Ordering;
+use std::sync::mpsc;
+use std::sync::mpsc::{
+    Receiver, RecvTimeoutError, SendError, Sender, SyncSender, TryRecvError, TrySendError,
+};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub struct Miner {}
+use crate::core::block::{BlockHash, BlockHeader};
+use crate::core::hash::{merkle_tree_from_transactions, MerkleHash};
+use crate::core::{merkle_tree, target_hash, Block, Sha256, Transaction};
+
+#[derive(Debug)]
+pub struct MinerRequest {
+    previous_block_hash: BlockHash,
+    transactions: Vec<Transaction>,
+    difficulty_target: u32,
+}
+
+impl MinerRequest {
+    pub fn new(
+        previous_block_hash: BlockHash,
+        transactions: Vec<Transaction>,
+        difficulty_target: u32,
+    ) -> Self {
+        Self {
+            previous_block_hash,
+            transactions,
+            difficulty_target,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum MinerResponse {
+    None(MinerRequest),
+    Mined(Block),
+}
+
+pub struct Miner {
+    rx: Receiver<MinerRequest>,
+    tx: Sender<MinerResponse>,
+}
+
+pub struct MinerChannel {
+    miner_requests: Sender<MinerRequest>,
+    miner_responses: Receiver<MinerResponse>,
+    num_outstanding_requests: u32,
+}
+
+impl MinerChannel {
+    pub fn send(&mut self, request: MinerRequest) -> Result<(), String> {
+        self.num_outstanding_requests += 1;
+        self.miner_requests.send(request).map_err(|e| e.to_string())
+    }
+
+    pub fn read(&mut self) -> Result<MinerResponse, TryRecvError> {
+        self.num_outstanding_requests -= 1;
+        self.miner_responses.try_recv()
+    }
+
+    pub fn num_outstanding_requests(&self) -> u32 {
+        self.num_outstanding_requests
+    }
+}
 
 impl Miner {
+    pub fn start_async() -> MinerChannel {
+        const TIMEOUT: Duration = Duration::from_secs(1);
+        let (miner_requests, rx) = mpsc::channel();
+        let (tx, miner_responses) = mpsc::channel();
+
+        thread::spawn(move || loop {
+            // todo!("Flush all, keep only the last request.");
+            match rx.recv_timeout(TIMEOUT) {
+                Ok(request) => {
+                    println!("Miner received a new request: {:#?}", request);
+                    let MinerRequest {
+                        previous_block_hash,
+                        transactions,
+                        difficulty_target,
+                    } = request;
+
+                    let timestamp = SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs() as u32;
+                    let merkle_root = merkle_tree_from_transactions(&transactions);
+                    let block_nonce = Self::pow(
+                        &previous_block_hash,
+                        &merkle_root,
+                        timestamp,
+                        difficulty_target,
+                    );
+                    let response = match block_nonce {
+                        None => MinerResponse::None(MinerRequest {
+                            previous_block_hash,
+                            transactions,
+                            difficulty_target,
+                        }),
+                        Some(nonce) => {
+                            let header = BlockHeader::new(
+                                previous_block_hash,
+                                merkle_root,
+                                timestamp,
+                                difficulty_target,
+                                nonce,
+                            );
+                            MinerResponse::Mined(Block::new(header, transactions))
+                        }
+                    };
+                    tx.send(response).unwrap();
+                }
+                Err(_e) => {
+                    continue;
+                }
+            }
+        });
+
+        MinerChannel {
+            miner_requests,
+            miner_responses,
+        }
+    }
+
     pub fn pow(
         parent_hash: &BlockHash,
         merkle_root: &MerkleHash,
@@ -58,8 +175,9 @@ impl Miner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::core::{as_hex, BlockchainManager};
+
+    use super::*;
 
     #[test]
     fn pow_difficulty_1() {

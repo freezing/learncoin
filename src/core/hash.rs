@@ -137,6 +137,14 @@ pub fn target_hash(n_zero_bits: u32) -> BlockHash {
     BlockHash::new(Sha256::new(hash))
 }
 
+pub fn merkle_tree_from_transactions(transactions: &Vec<Transaction>) -> MerkleHash {
+    let leaves = transactions
+        .iter()
+        .map(|tx| &tx.id().raw().bytes()[..])
+        .collect::<Vec<&[u8]>>();
+    merkle_tree(&leaves)
+}
+
 pub fn merkle_tree(leaves: &Vec<&[u8]>) -> MerkleHash {
     assert!(!leaves.is_empty());
     let mut hashes = leaves
