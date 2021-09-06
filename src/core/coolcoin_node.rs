@@ -251,6 +251,7 @@ impl CoolcoinNode {
 
     /// Should only be called by process_new_block_and_update_active_blockchain
     fn process_new_block(&mut self, block: Block) -> Result<(), String> {
+        // TODO: This method is useful for client as well, extract it as a library.
         if self.blockchain_manager.exists(&block) {
             Ok(())
         } else {

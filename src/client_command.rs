@@ -4,7 +4,8 @@ use crate::core::hash::from_hex;
 use crate::core::peer_connection::PeerMessage;
 use crate::core::transaction::{OutputIndex, TransactionId, TransactionInput, TransactionOutput};
 use crate::core::{
-    Address, Coolcoin, CoolcoinNetwork, CoolcoinNode, PeerConnection, Sha256, Transaction,
+    Address, BlockchainManager, Coolcoin, CoolcoinNetwork, CoolcoinNode, PeerConnection, Sha256,
+    Transaction,
 };
 use clap::{App, Arg, ArgMatches};
 use std::error::Error;
@@ -114,6 +115,18 @@ fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Resu
                 // tODO: Split ohrpnaed and active
                 let json = serde_json::to_string_pretty(&blocks).unwrap();
                 println!("{}", json);
+                // todo!("Visualise blocktree and orphans");
+                let mut blockchain_manager = BlockchainManager::new();
+                for block in blocks {
+                    blockchain_manager.new_block_reinsert_orphans(block);
+                }
+
+                println!("Active blockchain");
+                let mut width = 0 as usize;
+                for block in blockchain_manager.block_tree().active_blockchain() {
+                    println!("{}{}", " ".repeat(width), block.id());
+                    width += 4;
+                }
                 return Ok(());
             }
             Some(unexpected) => {

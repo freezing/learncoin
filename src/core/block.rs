@@ -109,6 +109,10 @@ impl Block {
         }
     }
 
+    pub fn id(&self) -> &BlockHash {
+        &self.id
+    }
+
     pub fn header(&self) -> &BlockHeader {
         &self.header
     }

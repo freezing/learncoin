@@ -57,7 +57,8 @@ impl BlockTree {
         }
     }
 
-    pub fn all(&self) -> Vec<Block> {
+    pub fn topological_sort(&self) -> Vec<Block> {
+        // TODO: Not a topological sort yet.
         self.tree.values().map(|e| e.block.clone()).collect()
     }
 

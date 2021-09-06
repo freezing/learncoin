@@ -30,7 +30,7 @@ impl BlockchainManager {
 
     pub fn all_blocks(&self) -> Vec<Block> {
         let mut all_blocks = vec![];
-        for block in &self.block_tree.all() {
+        for block in &self.block_tree.topological_sort() {
             all_blocks.push(block.clone());
         }
 
@@ -57,6 +57,16 @@ impl BlockchainManager {
             // If there is no parent in the block tree, the received node is orphaned.
             self.orphaned_blocks.insert(block);
             vec![]
+        }
+    }
+
+    /// Useful for client-side reconstruction of the blockchain.
+    pub fn new_block_reinsert_orphans(&mut self, block: Block) {
+        if !self.exists(&block) {
+            let orphans = self.new_block(block);
+            for orphan in orphans {
+                self.new_block_reinsert_orphans(orphan);
+            }
         }
     }
 
