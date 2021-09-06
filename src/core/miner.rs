@@ -50,13 +50,19 @@ pub struct MinerChannel {
 
 impl MinerChannel {
     pub fn send(&mut self, request: MinerRequest) -> Result<(), String> {
-        self.num_outstanding_requests += 1;
-        self.miner_requests.send(request).map_err(|e| e.to_string())
+        let result = self.miner_requests.send(request).map_err(|e| e.to_string());
+        if result.is_ok() {
+            self.num_outstanding_requests += 1;
+        }
+        result
     }
 
     pub fn read(&mut self) -> Result<MinerResponse, TryRecvError> {
-        self.num_outstanding_requests -= 1;
-        self.miner_responses.try_recv()
+        let result = self.miner_responses.try_recv();
+        if result.is_ok() {
+            self.num_outstanding_requests -= 1;
+        }
+        result
     }
 
     pub fn num_outstanding_requests(&self) -> u32 {
@@ -112,6 +118,7 @@ impl Miner {
                     tx.send(response).unwrap();
                 }
                 Err(_e) => {
+                    // eprintln!("{}", _e.to_string());
                     continue;
                 }
             }
@@ -120,6 +127,7 @@ impl Miner {
         MinerChannel {
             miner_requests,
             miner_responses,
+            num_outstanding_requests: 0,
         }
     }
 

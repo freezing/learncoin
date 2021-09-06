@@ -19,6 +19,14 @@ impl TransactionPool {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.transactions.is_empty()
+    }
+
+    pub fn all(&self) -> Vec<Transaction> {
+        self.transactions.values().map(|t| t.clone()).collect()
+    }
+
     /// Ensures that the transaction exists in the pool.
     pub fn insert(&mut self, transaction: Transaction) {
         self.transactions.insert(*transaction.id(), transaction);

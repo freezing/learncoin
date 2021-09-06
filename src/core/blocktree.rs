@@ -57,6 +57,10 @@ impl BlockTree {
         }
     }
 
+    pub fn all(&self) -> Vec<Block> {
+        self.tree.values().map(|e| e.block.clone()).collect()
+    }
+
     pub fn active_blockchain(&self) -> Vec<Block> {
         let mut blockchain = vec![];
         let mut current_entry = Some(self.tree.get(&self.active_block.hash).unwrap());
@@ -110,7 +114,6 @@ impl BlockTree {
         hash_a: &BlockHash,
         hash_b: &BlockHash,
     ) -> Option<(BlockHash, Vec<BlockHash>, Vec<BlockHash>)> {
-        assert_ne!(hash_a, hash_b);
         let mut path_a = vec![];
         let mut path_b = vec![];
 

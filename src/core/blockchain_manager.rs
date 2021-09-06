@@ -28,6 +28,18 @@ impl BlockchainManager {
         self.block_tree.tip()
     }
 
+    pub fn all_blocks(&self) -> Vec<Block> {
+        let mut all_blocks = vec![];
+        for block in &self.block_tree.all() {
+            all_blocks.push(block.clone());
+        }
+
+        for block in &self.orphaned_blocks.all() {
+            all_blocks.push(block.clone());
+        }
+        all_blocks
+    }
+
     pub fn block_tree(&self) -> &BlockTree {
         &self.block_tree
     }
@@ -62,7 +74,7 @@ impl BlockchainManager {
         let transactions = vec![Transaction::new(inputs, outputs, locktime).unwrap()];
         let previous_block_hash = BlockHash::new(Sha256::new([0; 32]));
         let merkle_root = merkle_tree_from_transactions(&transactions);
-        let difficulty = 1;
+        let difficulty = 8;
         let nonce = Miner::pow(&previous_block_hash, &merkle_root, timestamp, difficulty)
             .expect("can't find nonce for genesis block");
 

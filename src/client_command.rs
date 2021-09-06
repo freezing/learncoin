@@ -28,6 +28,11 @@ impl ClientCliOptions {
     }
 }
 
+fn getfullblockchain_subcommand() -> App<'static> {
+    App::new("getfullblockchain")
+        .about("Retrieves the full block from the server (including non-active chains).")
+}
+
 fn getblock_subcommand() -> App<'static> {
     App::new("getblock")
         .about("Retrieves the block from the server.")
@@ -83,6 +88,7 @@ pub fn client_command() -> App<'static> {
                 .takes_value(false)
                 .required(false),
         )
+        .subcommand(getfullblockchain_subcommand())
         .subcommand(getblock_subcommand())
         .subcommand(sendrawtransaction_subcommand())
 }
@@ -100,8 +106,14 @@ fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Resu
                 println!("{}", json);
                 return Ok(());
             }
-            Some(PeerMessage::ResponseTransaction()) => {
+            Some(PeerMessage::ResponseTransaction) => {
                 println!("Success");
+                return Ok(());
+            }
+            Some(PeerMessage::ResponseFullBlockchain(blocks)) => {
+                // tODO: Split ohrpnaed and active
+                let json = serde_json::to_string_pretty(&blocks).unwrap();
+                println!("{}", json);
                 return Ok(());
             }
             Some(unexpected) => {
@@ -125,8 +137,7 @@ pub fn run_client(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             from_hex(&hex).map_err(|e| format!("Invalid block hash format: {}", e))?,
         );
         send_request(&client_options, PeerMessage::GetBlock(block_hash))?;
-    }
-    if let Some(ref matches) = matches.subcommand_matches("sendrawtransaction") {
+    } else if let Some(ref matches) = matches.subcommand_matches("sendrawtransaction") {
         let locktime = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() as u32;
         let inputs = matches
             .values_of("inputs")
@@ -151,6 +162,8 @@ pub fn run_client(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
             .collect::<Vec<TransactionOutput>>();
         let transaction = Transaction::new(inputs, outputs, locktime)?;
         send_request(&client_options, PeerMessage::SendTransaction(transaction))?;
+    } else if let Some(ref matchesa) = matches.subcommand_matches("getfullblockchain") {
+        send_request(&client_options, PeerMessage::GetFullBlockchain)?;
     } else {
         panic!("Should report help.");
     }

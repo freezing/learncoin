@@ -18,6 +18,16 @@ impl OrphanedBlocks {
         }
     }
 
+    pub fn all(&self) -> Vec<Block> {
+        let mut all_blocks = vec![];
+        for (_, blocks) in &self.orphaned_blocks {
+            for block in blocks {
+                all_blocks.push(block.clone());
+            }
+        }
+        all_blocks
+    }
+
     /// Inserts the block.
     /// If the block with the same hash already exists, this function has no effect.
     pub fn insert(&mut self, block: Block) {

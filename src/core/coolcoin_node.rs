@@ -1,6 +1,6 @@
 use crate::core::block::BlockHash;
 use crate::core::coolcoin_network::NetworkParams;
-use crate::core::miner::{Miner, MinerResponse, MinerRequest};
+use crate::core::miner::{Miner, MinerRequest, MinerResponse};
 use crate::core::peer_connection::PeerMessage;
 use crate::core::{
     Block, BlockchainManager, ChainContext, CoolcoinNetwork, Transaction, TransactionPool,
@@ -50,7 +50,6 @@ impl CoolcoinNode {
     }
 
     pub fn run(mut self) {
-        todo!("Choose transactions for the miner");
         // If we can't send messages to all nodes immediately, then there is no point in trying
         // to recover since this is part of the startup.
         // It is okay for the process to fail since retrying would mean rerunning the process.
@@ -108,16 +107,36 @@ impl CoolcoinNode {
                     );
                     self.process_new_block_and_update_active_blockchain(block);
                 }
-                Err(TryRecvError::Empty) => {
-                    continue;
-                }
+                Err(TryRecvError::Empty) => {}
                 Err(TryRecvError::Disconnected) => {
                     eprintln!("Miner has been disconnected!")
                 }
             }
 
-            if miner.num_outstanding_requests() == 0 {
-                miner.send(MinerRequest::)
+            if miner.num_outstanding_requests() == 0 && !self.transaction_pool.is_empty() {
+                let previous_block_hash = self.blockchain_manager.tip().clone();
+                let transactions = self.transaction_pool.all().clone();
+                // TODO: Difficulty target should be returned by the blockchain manager,
+                // and it should be adjusted for each chain.
+                let difficulty_target = self
+                    .blockchain_manager
+                    .block_tree()
+                    .get(self.blockchain_manager.tip())
+                    .unwrap()
+                    .header()
+                    .difficulty_target();
+                match miner.send(MinerRequest::new(
+                    previous_block_hash,
+                    transactions,
+                    difficulty_target,
+                )) {
+                    Ok(()) => {
+                        println!("Requested from miner to mine block.");
+                    }
+                    Err(e) => {
+                        eprintln!("{}", e.to_string());
+                    }
+                }
             }
 
             thread::sleep(Duration::from_millis(100));
@@ -146,10 +165,21 @@ impl CoolcoinNode {
             PeerMessage::SendTransaction(transaction) => {
                 self.on_send_transaction(sender, transaction)
             }
-            PeerMessage::ResponseTransaction() => {
+            PeerMessage::ResponseTransaction => {
+                todo!()
+            }
+            PeerMessage::GetFullBlockchain => self.on_get_full_blockchain(sender),
+            PeerMessage::ResponseFullBlockchain(_blocks) => {
                 todo!()
             }
         }
+    }
+
+    fn on_get_full_blockchain(&mut self, sender: &str) -> Result<(), String> {
+        let blocks = self.blockchain_manager.all_blocks();
+        self.network
+            .send_to(sender, PeerMessage::ResponseFullBlockchain(blocks))?;
+        Ok(())
     }
 
     fn on_get_block(&mut self, sender: &str, block_hash: BlockHash) -> Result<(), String> {
@@ -170,7 +200,7 @@ impl CoolcoinNode {
     ) -> Result<(), String> {
         self.on_new_transaction(sender, transaction)?;
         self.network
-            .send_to(sender, PeerMessage::ResponseTransaction())?;
+            .send_to(sender, PeerMessage::ResponseTransaction)?;
         Ok(())
     }
 

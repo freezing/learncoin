@@ -24,7 +24,9 @@ pub enum PeerMessage {
     GetBlock(BlockHash),
     ResponseBlock(Option<Block>),
     SendTransaction(Transaction),
-    ResponseTransaction(),
+    GetFullBlockchain,
+    ResponseFullBlockchain(Vec<Block>),
+    ResponseTransaction,
     RelayBlock(Block),
     RelayTransaction(Transaction),
 }
