@@ -4,11 +4,13 @@ use crate::core::hash::from_hex;
 use crate::core::peer_connection::PeerMessage;
 use crate::core::transaction::{OutputIndex, TransactionId, TransactionInput, TransactionOutput};
 use crate::core::{
-    Address, BlockchainManager, Coolcoin, CoolcoinNetwork, CoolcoinNode, PeerConnection, Sha256,
-    Transaction,
+    as_hex, Address, Block, BlockchainManager, Coolcoin, CoolcoinNetwork, CoolcoinNode,
+    PeerConnection, Sha256, Transaction,
 };
 use clap::{App, Arg, ArgMatches};
+use std::collections::HashMap;
 use std::error::Error;
+use std::fs;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub struct ClientCliOptions {
@@ -94,6 +96,75 @@ pub fn client_command() -> App<'static> {
         .subcommand(sendrawtransaction_subcommand())
 }
 
+fn short_hash(hash: &BlockHash, blocks: &HashMap<&BlockHash, &Block>) -> String {
+    // TODO: This is a hack for now.
+    (&as_hex(&hash.as_slice())[..8]).to_string()
+}
+
+fn graphviz(blocks: &Vec<Block>) -> Result<(), String> {
+    // TODO: Hihglight active blockchain and orphans.
+    // digraph G {
+    //
+    //   subgraph cluster_0 {
+    //     style=filled;
+    //     color=lightgrey;
+    //     node [style=filled,color=white];
+    //     a0 -> a1 -> a2 -> a3;
+    //     label = "Active";
+    //   }
+    //
+    //   a0 -> b1 -> b2 -> b3
+    //
+    //   subgraph cluster_1 {
+    //     style=filled;
+    //     color=lightgrey;
+    //     node [style=filled,color=white];
+    //     c0;
+    //     c1;
+    //     c2;
+    //     c3;
+    //     c4;
+    //     ce91c6 -> 9ce91c7
+    //     label = "Orphans";
+    //   }
+    // }
+    let blocks = blocks
+        .iter()
+        .map(|b| (b.id(), b))
+        .collect::<HashMap<&BlockHash, &Block>>();
+
+    let graph_contents = blocks
+        .iter()
+        .map(|(hash, block)| {
+            (
+                blocks
+                    .get(block.header().previous_block_hash())
+                    .map(|b| b.id()),
+                block.id(),
+            )
+        })
+        .map(|(parent, child)| match parent {
+            Some(parent) => format!(
+                r#""{}" -> "{}";"#,
+                short_hash(parent, &blocks),
+                short_hash(child, &blocks)
+            ),
+            None => format!(r#""{}";"#, short_hash(child, &blocks)),
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let contents = format!(
+        r#"
+    digraph G {{
+      {}
+    }}
+    "#,
+        graph_contents
+    );
+    fs::write("./blockchain.dot", contents).map_err(|e| e.to_string())
+}
+
 fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Result<(), String> {
     let mut connection =
         PeerConnection::connect(client_options.server.clone(), client_options.enable_logging)?;
@@ -112,10 +183,11 @@ fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Resu
                 return Ok(());
             }
             Some(PeerMessage::ResponseFullBlockchain(blocks)) => {
+                graphviz(&blocks)?;
+
                 // tODO: Split ohrpnaed and active
                 let json = serde_json::to_string_pretty(&blocks).unwrap();
                 println!("{}", json);
-                // todo!("Visualise blocktree and orphans");
                 let mut blockchain_manager = BlockchainManager::new();
                 for block in blocks {
                     blockchain_manager.new_block_reinsert_orphans(block);

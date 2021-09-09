@@ -8,7 +8,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::core::block::{BlockHash, BlockHeader};
 use crate::core::hash::{merkle_tree_from_transactions, MerkleHash};
-use crate::core::{merkle_tree, target_hash, Block, Sha256, Transaction};
+use crate::core::transaction::{TransactionInput, TransactionOutput};
+use crate::core::{merkle_tree, target_hash, Address, Block, Coolcoin, Sha256, Transaction};
+
+pub struct Miner {}
 
 #[derive(Debug)]
 pub struct MinerRequest {
@@ -35,11 +38,6 @@ impl MinerRequest {
 pub enum MinerResponse {
     None(MinerRequest),
     Mined(Block),
-}
-
-pub struct Miner {
-    rx: Receiver<MinerRequest>,
-    tx: Sender<MinerResponse>,
 }
 
 pub struct MinerChannel {
@@ -71,19 +69,20 @@ impl MinerChannel {
 }
 
 impl Miner {
-    pub fn start_async() -> MinerChannel {
+    pub fn start_async(coinbase_address: Address, reward: Coolcoin) -> MinerChannel {
         const TIMEOUT: Duration = Duration::from_secs(1);
         let (miner_requests, rx) = mpsc::channel();
         let (tx, miner_responses) = mpsc::channel();
 
         thread::spawn(move || loop {
             // todo!("Flush all, keep only the last request.");
+
             match rx.recv_timeout(TIMEOUT) {
                 Ok(request) => {
                     println!("Miner received a new request: {:#?}", request);
                     let MinerRequest {
                         previous_block_hash,
-                        transactions,
+                        mut transactions,
                         difficulty_target,
                     } = request;
 
@@ -91,6 +90,16 @@ impl Miner {
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
                         .as_secs() as u32;
+
+                    let coinbase_transaction = Transaction::new(
+                        vec![TransactionInput::new_coinbase()],
+                        vec![TransactionOutput::new(coinbase_address.clone(), reward)],
+                        timestamp,
+                    )
+                    .unwrap();
+
+                    transactions.insert(0, coinbase_transaction);
+
                     let merkle_root = merkle_tree_from_transactions(&transactions);
                     let block_nonce = Self::pow(
                         &previous_block_hash,
@@ -278,6 +287,6 @@ mod tests {
             difficulty,
             pow_nonce,
         );
-        as_hex(pow_block.hash().raw())
+        as_hex(pow_block.hash().as_slice())
     }
 }

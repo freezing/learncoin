@@ -3,8 +3,8 @@ use crate::core::coolcoin_network::NetworkParams;
 use crate::core::miner::{Miner, MinerRequest, MinerResponse};
 use crate::core::peer_connection::PeerMessage;
 use crate::core::{
-    Block, BlockchainManager, ChainContext, CoolcoinNetwork, Transaction, TransactionPool,
-    UtxoContext, UtxoPool,
+    Address, Block, BlockchainManager, ChainContext, Coolcoin, CoolcoinNetwork, Transaction,
+    TransactionPool, UtxoContext, UtxoPool,
 };
 use std::net::TcpStream;
 use std::sync::mpsc::TryRecvError;
@@ -35,10 +35,14 @@ pub struct CoolcoinNode {
     outstanding_get_inventory_requests: Vec<String>,
     transaction_pool: TransactionPool,
     utxo_pool: UtxoPool,
+    coinbase_address: Address,
 }
 
 impl CoolcoinNode {
-    pub fn connect(network_params: NetworkParams) -> Result<Self, String> {
+    pub fn connect(
+        network_params: NetworkParams,
+        coinbase_address: Address,
+    ) -> Result<Self, String> {
         let network = CoolcoinNetwork::connect(&network_params)?;
         Ok(Self {
             network,
@@ -46,6 +50,7 @@ impl CoolcoinNode {
             outstanding_get_inventory_requests: Vec::new(),
             transaction_pool: TransactionPool::new(),
             utxo_pool: UtxoPool::new(),
+            coinbase_address,
         })
     }
 
@@ -56,7 +61,8 @@ impl CoolcoinNode {
         // Of course, in production like implementation we would handle that in code.
         self.network.broadcast(PeerMessage::GetInventory()).unwrap();
 
-        let mut miner = Miner::start_async();
+        let reward = Coolcoin::new(50);
+        let mut miner = Miner::start_async(self.coinbase_address.clone(), reward);
 
         loop {
             let current_time = SystemTime::now()
