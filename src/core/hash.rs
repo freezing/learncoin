@@ -70,6 +70,10 @@ impl MerkleHash {
     pub fn raw(&self) -> &Sha256 {
         &self.0
     }
+
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0.bytes()[..]
+    }
 }
 
 impl Display for MerkleHash {
@@ -181,7 +185,7 @@ mod tests {
     fn hash_test() {
         let data = b"hello world";
         assert_eq!(
-            hex::encode(hash(data)),
+            hex::encode(hash(data).bytes()),
             "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
         );
     }
@@ -190,7 +194,7 @@ mod tests {
     fn merkle_tree_even() {
         let merkle_root = merkle_tree(&vec![b"hello", b"world", b"this is", b"coolcoin"]);
         assert_eq!(
-            as_hex(merkle_root.raw()),
+            as_hex(merkle_root.as_slice()),
             "9a78c5b0f711a613e62660182f4357c7befd179d27c57cf8abb6e31a23d1cd7b"
         );
     }
@@ -199,7 +203,7 @@ mod tests {
     fn merkle_tree_odd() {
         let merkle_root = merkle_tree(&vec![b"hello", b"world", b"this is"]);
         assert_eq!(
-            as_hex(merkle_root.raw()),
+            as_hex(merkle_root.as_slice()),
             "be1257a768ca532e01caed9b6cdc420a52f3de14dd5adcb353066cf581334c35"
         );
     }
@@ -208,7 +212,7 @@ mod tests {
     fn merkle_tree_even_same_as_previous_odd() {
         let merkle_root = merkle_tree(&vec![b"hello", b"world", b"this is", b"this is"]);
         assert_eq!(
-            as_hex(merkle_root.raw()),
+            as_hex(merkle_root.as_slice()),
             "be1257a768ca532e01caed9b6cdc420a52f3de14dd5adcb353066cf581334c35"
         );
     }
@@ -216,27 +220,27 @@ mod tests {
     #[test]
     fn target_hash_test() {
         assert_eq!(
-            as_hex(target_hash(0).raw()),
+            as_hex(target_hash(0).as_slice()),
             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
         assert_eq!(
-            as_hex(target_hash(4).raw()),
+            as_hex(target_hash(4).as_slice()),
             "0fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
         assert_eq!(
-            as_hex(target_hash(8).raw()),
+            as_hex(target_hash(8).as_slice()),
             "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
         assert_eq!(
-            as_hex(target_hash(12).raw()),
+            as_hex(target_hash(12).as_slice()),
             "000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
         assert_eq!(
-            as_hex(target_hash(16).raw()),
+            as_hex(target_hash(16).as_slice()),
             "0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
         assert_eq!(
-            as_hex(target_hash(20).raw()),
+            as_hex(target_hash(20).as_slice()),
             "00000fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         );
     }

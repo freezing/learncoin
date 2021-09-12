@@ -175,7 +175,7 @@ impl CoolcoinNode {
                 todo!()
             }
             PeerMessage::GetFullBlockchain => self.on_get_full_blockchain(sender),
-            PeerMessage::ResponseFullBlockchain(_blocks) => {
+            PeerMessage::ResponseFullBlockchain(_active_blockchain, _blocks) => {
                 todo!()
             }
         }
@@ -183,8 +183,17 @@ impl CoolcoinNode {
 
     fn on_get_full_blockchain(&mut self, sender: &str) -> Result<(), String> {
         let blocks = self.blockchain_manager.all_blocks();
-        self.network
-            .send_to(sender, PeerMessage::ResponseFullBlockchain(blocks))?;
+        let active_blockchain = self
+            .blockchain_manager
+            .block_tree()
+            .active_blockchain()
+            .iter()
+            .map(|b| b.id().clone())
+            .collect::<Vec<BlockHash>>();
+        self.network.send_to(
+            sender,
+            PeerMessage::ResponseFullBlockchain(active_blockchain, blocks),
+        )?;
         Ok(())
     }
 

@@ -4,7 +4,7 @@ use crate::core::hash::from_hex;
 use crate::core::peer_connection::PeerMessage;
 use crate::core::transaction::{OutputIndex, TransactionId, TransactionInput, TransactionOutput};
 use crate::core::{
-    as_hex, Address, Block, BlockchainManager, Coolcoin, CoolcoinNetwork, CoolcoinNode,
+    as_hex, Address, Block, BlockTree, BlockchainManager, Coolcoin, CoolcoinNetwork, CoolcoinNode,
     PeerConnection, Sha256, Transaction,
 };
 use clap::{App, Arg, ArgMatches};
@@ -96,12 +96,12 @@ pub fn client_command() -> App<'static> {
         .subcommand(sendrawtransaction_subcommand())
 }
 
-fn short_hash(hash: &BlockHash, blocks: &HashMap<&BlockHash, &Block>) -> String {
+fn short_hash(hash: &BlockHash, blocks: &HashMap<BlockHash, Block>) -> String {
     // TODO: This is a hack for now.
     (&as_hex(&hash.as_slice())[..8]).to_string()
 }
 
-fn graphviz(blocks: &Vec<Block>) -> Result<(), String> {
+fn graphviz(blockchain: &BlockchainManager) -> Result<(), String> {
     // TODO: Hihglight active blockchain and orphans.
     // digraph G {
     //
@@ -128,16 +128,42 @@ fn graphviz(blocks: &Vec<Block>) -> Result<(), String> {
     //     label = "Orphans";
     //   }
     // }
-    let blocks = blocks
-        .iter()
-        .map(|b| (b.id(), b))
-        .collect::<HashMap<&BlockHash, &Block>>();
 
-    let graph_contents = blocks
+    let all_blocks = blockchain.all_blocks();
+    let all_blocks = all_blocks
+        .into_iter()
+        .map(|b| (b.id().clone(), b))
+        .collect::<HashMap<BlockHash, Block>>();
+    let active_blockchain = blockchain.block_tree().active_blockchain();
+    let orphaned_blocks = blockchain.orphaned_blocks();
+
+    let mut active_blockchain_edges = Vec::new();
+    for i in 0..(active_blockchain.len() - 1) {
+        let current = active_blockchain.get(i).unwrap();
+        let next = active_blockchain.get(i + 1).unwrap();
+        active_blockchain_edges.push((current.id(), next.id()));
+    }
+    let active_blockchain_graph = active_blockchain_edges
         .iter()
+        .map(|(parent, child)| {
+            format!(
+                r#""{}" -> "{}";"#,
+                short_hash(parent, &all_blocks),
+                short_hash(child, &all_blocks)
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let secondary_blockchain_graph = all_blocks
+        .iter()
+        .filter(|(hash, block)| {
+            active_blockchain.iter().find(|b| b.id() == *hash).is_none()
+                && orphaned_blocks.iter().find(|b| b.id() == *hash).is_none()
+        })
         .map(|(hash, block)| {
             (
-                blocks
+                all_blocks
                     .get(block.header().previous_block_hash())
                     .map(|b| b.id()),
                 block.id(),
@@ -146,10 +172,22 @@ fn graphviz(blocks: &Vec<Block>) -> Result<(), String> {
         .map(|(parent, child)| match parent {
             Some(parent) => format!(
                 r#""{}" -> "{}";"#,
-                short_hash(parent, &blocks),
-                short_hash(child, &blocks)
+                short_hash(parent, &all_blocks),
+                short_hash(child, &all_blocks)
             ),
-            None => format!(r#""{}";"#, short_hash(child, &blocks)),
+            None => format!(r#""{}";"#, short_hash(child, &all_blocks)),
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    let orphaned_blocks_graph = orphaned_blocks
+        .iter()
+        .map(|block| {
+            format!(
+                r#""{}" -> "{}";"#,
+                short_hash(block.header().previous_block_hash(), &all_blocks),
+                short_hash(block.id(), &all_blocks)
+            )
         })
         .collect::<Vec<String>>()
         .join("\n");
@@ -157,10 +195,27 @@ fn graphviz(blocks: &Vec<Block>) -> Result<(), String> {
     let contents = format!(
         r#"
     digraph G {{
+    
+        subgraph cluster_0 {{
+            style=filled;
+            color=lightgrey;
+            node [style=filled,color=white];
+            label = "Active";
+            {}
+        }}
+        
+        subgraph cluster_1 {{
+            style=filled;
+            color=lightgrey;
+            node [style=filled,color=white];
+            label = "Orphans";
+            {}
+        }}
+    
       {}
     }}
     "#,
-        graph_contents
+        active_blockchain_graph, orphaned_blocks_graph, secondary_blockchain_graph
     );
     fs::write("./blockchain.dot", contents).map_err(|e| e.to_string())
 }
@@ -182,13 +237,24 @@ fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Resu
                 println!("Success");
                 return Ok(());
             }
-            Some(PeerMessage::ResponseFullBlockchain(blocks)) => {
-                graphviz(&blocks)?;
-
-                // tODO: Split ohrpnaed and active
+            Some(PeerMessage::ResponseFullBlockchain(active_blockchain, blocks)) => {
                 let json = serde_json::to_string_pretty(&blocks).unwrap();
                 println!("{}", json);
                 let mut blockchain_manager = BlockchainManager::new();
+
+                // First insert active blockchain since blockchain manager gives priority to the one
+                // that comes first (if lengths are equal).
+                // TODO: Until most work is properly implemented.
+
+                for active_block_hash in active_blockchain {
+                    let active_block = blocks
+                        .iter()
+                        .find(|b| *b.id() == active_block_hash)
+                        .unwrap();
+                    blockchain_manager.new_block_reinsert_orphans(active_block.clone());
+                }
+
+                // Insert remaining blocks.
                 for block in blocks {
                     blockchain_manager.new_block_reinsert_orphans(block);
                 }
@@ -199,6 +265,9 @@ fn send_request(client_options: &ClientCliOptions, message: PeerMessage) -> Resu
                     println!("{}{}", " ".repeat(width), block.id());
                     width += 4;
                 }
+
+                graphviz(&blockchain_manager)?;
+
                 return Ok(());
             }
             Some(unexpected) => {

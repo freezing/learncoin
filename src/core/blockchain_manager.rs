@@ -30,7 +30,7 @@ impl BlockchainManager {
 
     pub fn all_blocks(&self) -> Vec<Block> {
         let mut all_blocks = vec![];
-        for block in &self.block_tree.topological_sort() {
+        for block in &self.block_tree.all() {
             all_blocks.push(block.clone());
         }
 
@@ -40,6 +40,10 @@ impl BlockchainManager {
         all_blocks
     }
 
+    pub fn orphaned_blocks(&self) -> Vec<Block> {
+        self.orphaned_blocks.all()
+    }
+
     pub fn block_tree(&self) -> &BlockTree {
         &self.block_tree
     }
@@ -47,9 +51,7 @@ impl BlockchainManager {
     /// Assumes that the block is valid.
     pub fn new_block(&mut self, block: Block) -> Vec<Block> {
         if self.block_tree.exists(block.header().previous_block_hash()) {
-            let orphans = self
-                .orphaned_blocks
-                .remove(block.header().previous_block_hash());
+            let orphans = self.orphaned_blocks.remove(block.id());
             // If the parent exists, validate the node and insert it
             self.block_tree.insert(block);
             orphans
@@ -96,5 +98,124 @@ impl BlockchainManager {
             nonce,
         );
         Block::new(header, transactions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::hash::{from_hex, MerkleHash};
+
+    #[test]
+    fn new_block_reinsert_orphans() {
+        const DIFFICULTY_TARGET: u32 = 1;
+
+        let mut blockchain = BlockchainManager::new();
+        let block_0 = BlockchainManager::genesis_block();
+        let block_1 = Block::new(
+            BlockHeader::new(
+                block_0.id().clone(),
+                MerkleHash::new(
+                    from_hex("00cf8be900cf8be900cf8be900cf8be900cf8be900cf8be900cf8be900cf8be9")
+                        .unwrap(),
+                ),
+                100,
+                DIFFICULTY_TARGET,
+                3,
+            ),
+            vec![],
+        );
+        let block_2 = Block::new(
+            BlockHeader::new(
+                block_1.id().clone(),
+                MerkleHash::new(
+                    from_hex("0005e6c10005e6c10005e6c10005e6c10005e6c10005e6c10005e6c10005e6c1")
+                        .unwrap(),
+                ),
+                100,
+                DIFFICULTY_TARGET,
+                3,
+            ),
+            vec![],
+        );
+        let block_3 = Block::new(
+            BlockHeader::new(
+                block_2.id().clone(),
+                MerkleHash::new(
+                    from_hex("00d8368100d8368100d8368100d8368100d8368100d8368100d8368100d83681")
+                        .unwrap(),
+                ),
+                100,
+                DIFFICULTY_TARGET,
+                3,
+            ),
+            vec![],
+        );
+
+        blockchain.new_block_reinsert_orphans(block_2.clone());
+        blockchain.new_block_reinsert_orphans(block_3.clone());
+
+        {
+            // Assert block_2 and block_3 are orphans, and only genesis block is in the active blockchain.
+            {
+                // Orphans check.
+                let mut actual = blockchain
+                    .orphaned_blocks
+                    .all()
+                    .iter()
+                    .map(|b| b.id().clone())
+                    .collect::<Vec<BlockHash>>();
+                actual.sort();
+                let expected = vec![block_3.id().clone(), block_2.id().clone()];
+                assert_eq!(actual, expected);
+            }
+
+            {
+                // Active blockchain check.
+                let actual = blockchain
+                    .block_tree()
+                    .active_blockchain()
+                    .iter()
+                    .map(|b| b.id().clone())
+                    .collect::<Vec<BlockHash>>();
+                assert_eq!(actual, vec![block_0.id().clone()]);
+            }
+        }
+
+        {
+            blockchain.new_block_reinsert_orphans(block_1.clone());
+            // Assert that inserting block_1 inserts blocks 2 and 3.
+            // This leaves us with no orphans, and active blockchain should contain all nodes.
+            {
+                // Orphans check.
+                let mut actual = blockchain
+                    .orphaned_blocks
+                    .all()
+                    .iter()
+                    .map(|b| b.id().clone())
+                    .collect::<Vec<BlockHash>>();
+                actual.sort();
+                assert_eq!(actual, vec![]);
+            }
+
+            {
+                // Active blockchain check.
+                let actual = blockchain
+                    .block_tree()
+                    .active_blockchain()
+                    .iter()
+                    .map(|b| b.id().clone())
+                    .collect::<Vec<BlockHash>>();
+                assert_eq!(
+                    actual,
+                    vec![
+                        block_0.id().clone(),
+                        block_1.id().clone(),
+                        block_2.id().clone(),
+                        block_3.id().clone()
+                    ]
+                );
+            }
+        }
     }
 }

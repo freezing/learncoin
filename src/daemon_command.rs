@@ -50,6 +50,7 @@ pub fn daemon_command() -> App<'static> {
                 .value_name("[String]")
                 .about("List of peer addresses to which the node connects to.")
                 .multiple_occurrences(true)
+                .use_delimiter(true)
                 .takes_value(true)
                 .default_values(vec![].as_slice())
                 .required(false),
