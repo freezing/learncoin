@@ -54,6 +54,60 @@ impl BlockTree {
         }
     }
 
+    pub fn active_blockchain(&self) -> Vec<Block> {
+        let mut blockchain = vec![];
+        let mut current_entry = Some(self.tree.get(&self.active_block.hash).unwrap());
+        while let Some(tree_entry) = current_entry {
+            blockchain.push(tree_entry.block.clone());
+            current_entry = self
+                .tree
+                .get(&tree_entry.block.header().previous_block_hash());
+        }
+        blockchain.into_iter().rev().collect()
+    }
+
+    /// Returns the list of locator hashes based on the following algorithm:
+    ///   1) Include the current block hash.
+    ///      The current block hash is initially the tip.
+    ///   2) Skip N blocks.
+    ///      N is 0 for the first 10 blocks, then it grows exponentially for each block.
+    ///   3) Repeat 1) and 2) until there are no more blocks.
+    ///      Ensure the genesis block is included.
+    ///
+    /// Based on:
+    /// https://github.com/bitcoin/bitcoin/blob/7fcf53f7b4524572d1d0c9a5fdc388e87eb02416/src/chain.cpp#L23
+    pub fn locator_hashes(&self) -> Vec<BlockHash> {
+        let mut hashes = vec![];
+        let mut current_entry = self.tree.get(&self.active_block.hash).unwrap();
+        let mut step = 1;
+        // Stop when we have added the genesis block.
+        loop {
+            hashes.push(current_entry.block.header().hash());
+
+            if hashes.len() > 10 {
+                step *= 2;
+            }
+
+            if current_entry.height == 0 {
+                // Genesis block has been inserted. We're done.
+                break;
+            }
+            // Move to the next hash and skip `step - 1` hashes or until we find the genesis block.
+            for _ in 0..step {
+                if current_entry.height == 0 {
+                    break;
+                }
+                // Safety: Hash is guaranteed to exist because current_entry.height > 0.
+                assert!(current_entry.height > 0);
+                current_entry = self
+                    .tree
+                    .get(&current_entry.block.header().previous_block_hash())
+                    .unwrap();
+            }
+        }
+        hashes
+    }
+
     /// Returns a copy of all the blocks in the block tree in no particular order.
     pub fn all_blocks(&self) -> Vec<Block> {
         self.tree.values().map(|e| e.block.clone()).collect()

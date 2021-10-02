@@ -1,10 +1,11 @@
 use crate::{MerkleHash, MerkleTree, Sha256, Transaction};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 
 /// A block hash that identifies the block uniquely and unambiguously, and implicitly all of its
 /// ancestors.
-#[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone)]
+#[derive(Hash, Ord, PartialOrd, Eq, PartialEq, Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct BlockHash(Sha256);
 
 impl BlockHash {
