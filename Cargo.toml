@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 clap = "3.0.0-beta.2"
+hex = "0.4.3"
+sha2 = "0.9.8"
 
 [lib]
 name = "learncoin_lib"
