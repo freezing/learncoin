@@ -66,7 +66,9 @@ impl BlockTree {
         blockchain.into_iter().rev().collect()
     }
 
-    /// Returns the list of locator hashes based on the following algorithm:
+    /// Returns the list of locator hashes sorted descending order by their height.
+    ///
+    /// The algorithm:
     ///   1) Include the current block hash.
     ///      The current block hash is initially the tip.
     ///   2) Skip N blocks.
