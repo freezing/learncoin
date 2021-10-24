@@ -1,4 +1,3 @@
-use crate::{Block, BlockHash};
 use serde::{Deserialize, Serialize};
 
 /// Metadata about the MessagePayload.
@@ -39,8 +38,6 @@ impl VersionMessage {
 pub enum PeerMessagePayload {
     Version(VersionMessage),
     Verack,
-    GetHeaders(BlockLocatorObject),
-    Headers(),
 }
 
 /// An API to encode and decode peer messages.

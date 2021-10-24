@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::block_locator_object::BlockLocatorObject;
 use crate::{Block, BlockHash};
 
 /// Represents a node of the tree, which is an implementation detail of the block tree, so it's not

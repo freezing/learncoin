@@ -59,7 +59,7 @@ pub fn run_server_command(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         options.peers.clone(),
         MAX_RECV_BUFFER_SIZE,
     );
-    let mut node = LearnCoinNode::connect(network_params, SOFTWARE_VERSION)?;
+    let node = LearnCoinNode::connect(network_params, SOFTWARE_VERSION)?;
     node.run()?;
     Ok(())
 }

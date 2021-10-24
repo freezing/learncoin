@@ -1,16 +1,10 @@
 use crate::{
-    Block, BlockHash, BlockHeader, Blockchain, LearnCoinNetwork, MerkleTree, NetworkParams,
-    PeerMessagePayload, ProofOfWork, Sha256, Transaction, TransactionInput, TransactionOutput,
-    VersionMessage,
+    Block, BlockHash, Blockchain, LearnCoinNetwork, MerkleTree, NetworkParams, PeerMessagePayload,
+    ProofOfWork, Sha256, Transaction, TransactionInput, TransactionOutput, VersionMessage,
 };
-use rand::Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
-
-const MAX_INVENTORY_SIZE: usize = 500;
-const MAX_LOCATOR_SIZE: usize = 100;
-const MAX_IN_FLIGHT_MESSAGES_PER_PEER: u32 = 500;
 
 pub struct LearnCoinNode {
     network: LearnCoinNetwork,
@@ -90,15 +84,6 @@ impl LearnCoinNode {
                 }
             }
 
-            let peer_addresses = self
-                .network
-                .peer_addresses()
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>();
-            for peer_address in peer_addresses {
-                // TODO:
-            }
             self.network.drop_inactive_peers();
 
             // Waiting strategy to avoid busy loops.
@@ -110,12 +95,6 @@ impl LearnCoinNode {
         match message {
             PeerMessagePayload::Version(version) => self.on_version(peer_address, version),
             PeerMessagePayload::Verack => self.on_version_ack(peer_address),
-            PeerMessagePayload::GetBlocks(get_blocks) => {
-                self.on_getblocks(peer_address, get_blocks)
-            }
-            PeerMessagePayload::Inv(inventory) => self.on_inventory(peer_address, inventory),
-            PeerMessagePayload::GetData(block_hash) => self.on_getdata(peer_address, block_hash),
-            PeerMessagePayload::Block(block) => self.on_block(peer_address, block),
         }
     }
 

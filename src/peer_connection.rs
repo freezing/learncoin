@@ -1,5 +1,4 @@
 use crate::{FlipBuffer, PeerMessageEncoding, PeerMessageHeader, PeerMessagePayload};
-use std::cmp::max;
 use std::fmt::Debug;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -23,7 +22,7 @@ pub struct PeerConnection {
 impl PeerConnection {
     /// Establishes a TCP connection with a peer at the given address.
     pub fn connect(peer_address: String, recv_buffer_size: usize) -> Result<Self, String> {
-        let mut tcp_stream = TcpStream::connect(&peer_address).map_err(|e| e.to_string())?;
+        let tcp_stream = TcpStream::connect(&peer_address).map_err(|e| e.to_string())?;
         tcp_stream
             .set_nonblocking(true)
             .map_err(|e| e.to_string())?;
