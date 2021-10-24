@@ -1,4 +1,5 @@
 pub mod block;
+pub mod block_locator_object;
 pub mod block_tree;
 pub mod blockchain;
 pub mod commands;

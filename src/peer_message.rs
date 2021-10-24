@@ -34,54 +34,13 @@ impl VersionMessage {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct GetBlocks {
-    // Sorted in descending order by the block height.
-    block_locator_hashes: Vec<BlockHash>,
-}
-
-impl GetBlocks {
-    pub fn new(block_locator_hashes: Vec<BlockHash>) -> Self {
-        Self {
-            block_locator_hashes,
-        }
-    }
-
-    pub fn block_locator_hashes(&self) -> &Vec<BlockHash> {
-        &self.block_locator_hashes
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
-pub struct Inventory {
-    // Bitcoin protocol uses Inventory message to send any kind of hashes.
-    // However, in the learncoin implementation, we only use it to send block hashes.
-    hashes: Vec<BlockHash>,
-}
-
-impl Inventory {
-    pub fn new(hashes: Vec<BlockHash>) -> Self {
-        Self { hashes }
-    }
-
-    pub fn hashes(&self) -> &Vec<BlockHash> {
-        &self.hashes
-    }
-
-    pub fn into_hashes(self) -> Vec<BlockHash> {
-        self.hashes
-    }
-}
-
 /// Payload sent to and received from the peers.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum PeerMessagePayload {
     Version(VersionMessage),
     Verack,
-    GetBlocks(GetBlocks),
-    Inv(Inventory),
-    GetData(BlockHash),
-    Block(Block),
+    GetHeaders(BlockLocatorObject),
+    Headers(),
 }
 
 /// An API to encode and decode peer messages.
