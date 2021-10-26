@@ -18,10 +18,26 @@ impl PeerMessageHeader {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct VersionMessage {
+    version: u32,
+}
+
+impl VersionMessage {
+    pub fn new(version: u32) -> Self {
+        Self { version }
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+}
+
 /// Payload sent to and received from the peers.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum PeerMessagePayload {
-    PlaceholderUntilWeImplementProtocol,
+    Version(VersionMessage),
+    Verack,
 }
 
 /// An API to encode and decode peer messages.
