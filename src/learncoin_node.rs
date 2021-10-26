@@ -1,40 +1,42 @@
-use crate::{LearnCoinNetwork, NetworkParams, PeerMessagePayload, VersionMessage};
-use std::collections::HashSet;
+use crate::{LearnCoinNetwork, NetworkParams, PeerMessagePayload, PeerState, VersionMessage};
+use std::collections::HashMap;
 use std::thread;
 use std::time::Duration;
 
 pub struct LearnCoinNode {
     network: LearnCoinNetwork,
     version: u32,
-    // A list of peers from which the local node expects a verack message.
-    peers_to_receive_verack_from: HashSet<String>,
-    // A list of peers from which the local node expects a version message.
-    peers_to_receive_version_from: HashSet<String>,
+    peer_states: HashMap<String, PeerState>,
 }
 
 impl LearnCoinNode {
     pub fn connect(network_params: NetworkParams, version: u32) -> Result<Self, String> {
+        let mut peer_states = HashMap::new();
+        for peer_address in network_params.peers() {
+            peer_states.insert(peer_address.to_string(), PeerState::new());
+        }
         let network = LearnCoinNetwork::connect(network_params)?;
 
         Ok(Self {
             network,
             version,
-            peers_to_receive_verack_from: HashSet::new(),
-            peers_to_receive_version_from: HashSet::new(),
+            peer_states,
         })
     }
 
     pub fn run(mut self) -> Result<(), String> {
         // A peer that initiates a connection must send the version message.
-        // We broadcast the version message to all of our peers before doing any work.
-        self.network
-            .send_to_all(&PeerMessagePayload::Version(VersionMessage::new(
-                self.version,
-            )));
-
-        // We expect a verack message from the peers if their version is compatible.
-        self.peers_to_receive_verack_from
-            .extend(self.network.peer_addresses().iter().map(|s| s.to_string()));
+        // We send the version message to all of our peers before doing any work.
+        for peer_address in self.peer_addresses() {
+            self.network.send(
+                &peer_address,
+                &PeerMessagePayload::Version(VersionMessage::new(self.version)),
+            );
+            self.peer_states
+                .get_mut(&peer_address)
+                .unwrap()
+                .expect_verack_message = true;
+        }
 
         loop {
             let new_peers = self.network.accept_new_peers()?;
@@ -43,7 +45,12 @@ impl LearnCoinNode {
             }
             // The local node expects the peers that initiated a connection to send the version
             // messages.
-            self.peers_to_receive_version_from.extend(new_peers);
+            for peer_address in &new_peers {
+                let mut peer_state = PeerState::new();
+                peer_state.expect_version_message = true;
+                self.peer_states
+                    .insert(peer_address.to_string(), peer_state);
+            }
 
             // Receive data from the network.
             let all_messages = self.network.receive_all();
@@ -68,15 +75,16 @@ impl LearnCoinNode {
     }
 
     fn on_version(&mut self, peer_address: &str, peer_version: VersionMessage) {
-        // We don't expect the version message from this peer anymore.
-        let is_version_expected_from_peer = self.peers_to_receive_version_from.remove(peer_address);
-        if !is_version_expected_from_peer {
+        let peer_state = self.peer_states.get_mut(peer_address).unwrap();
+
+        if !peer_state.expect_version_message {
             println!(
                 "Received redundant version message from the peer: {}",
                 peer_address
             );
             return;
         }
+        peer_state.expect_version_message = false;
 
         let is_version_compatible = peer_version.version() == self.version;
         if !is_version_compatible {
@@ -96,24 +104,32 @@ impl LearnCoinNode {
     }
 
     fn on_version_ack(&mut self, peer_address: &str) {
-        let is_removed = self.peers_to_receive_verack_from.remove(peer_address);
-        if !is_removed {
+        let peer_state = self.peer_states.get_mut(peer_address).unwrap();
+        if !peer_state.expect_verack_message {
             println!(
                 "Received redundant verack message from the peer: {}",
                 peer_address
             );
             return;
         }
+        peer_state.expect_verack_message = false;
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {
         self.network.close_peer_connection(peer_address);
         // Free any resources allocated for the peer.
-        self.peers_to_receive_verack_from.remove(peer_address);
-        self.peers_to_receive_version_from.remove(peer_address);
+        self.peer_states.remove(peer_address);
         eprintln!(
             "Closed a connection to the peer {}. Reason: {}",
             peer_address, reason
         );
+    }
+
+    fn peer_addresses(&self) -> Vec<String> {
+        self.network
+            .peer_addresses()
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 }
