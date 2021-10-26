@@ -30,7 +30,7 @@ impl Display for BlockHash {
 }
 
 /// Block header represents the metadata of the block associated with it.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct BlockHeader {
     // Version number ignored.
     // A reference to the hash of the previous (parent) block in the chain.
@@ -113,7 +113,7 @@ impl BlockHeader {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Block {
     // Block hash that is equivalent to `header.hash()`.
     // It's convenient to store it here, rather than having to get it via block header each time.

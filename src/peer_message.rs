@@ -1,4 +1,4 @@
-use crate::BlockHash;
+use crate::{Block, BlockHash};
 use serde::{Deserialize, Serialize};
 
 /// Metadata about the MessagePayload.
@@ -67,6 +67,10 @@ impl Inventory {
     pub fn hashes(&self) -> &Vec<BlockHash> {
         &self.hashes
     }
+
+    pub fn into_hashes(self) -> Vec<BlockHash> {
+        self.hashes
+    }
 }
 
 /// Payload sent to and received from the peers.
@@ -76,6 +80,8 @@ pub enum PeerMessagePayload {
     Verack,
     GetBlocks(GetBlocks),
     Inv(Inventory),
+    GetData(BlockHash),
+    Block(Block),
 }
 
 /// An API to encode and decode peer messages.
