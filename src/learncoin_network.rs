@@ -24,6 +24,16 @@ impl NetworkParams {
             recv_buffer_size,
         }
     }
+
+    pub fn server_address(&self) -> &str {
+        &self.server_address
+    }
+    pub fn peers(&self) -> &Vec<String> {
+        &self.peers
+    }
+    pub fn recv_buffer_size(&self) -> usize {
+        self.recv_buffer_size
+    }
 }
 
 pub struct LearnCoinNetwork {
