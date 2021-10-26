@@ -1,30 +1,41 @@
+use crate::block_index::BlockIndex;
 use crate::{
-    Block, BlockHash, Blockchain, LearnCoinNetwork, MerkleTree, NetworkParams, PeerMessagePayload,
-    ProofOfWork, Sha256, Transaction, TransactionInput, TransactionOutput, VersionMessage,
+    Block, BlockHash, BlockHeader, BlockLocatorObject, Blockchain, LearnCoinNetwork, MerkleTree,
+    NetworkParams, PeerMessagePayload, ProofOfWork, Sha256, Transaction, TransactionInput,
+    TransactionOutput, VersionMessage,
 };
 use std::collections::HashSet;
+use std::hash::Hash;
 use std::thread;
 use std::time::Duration;
+
+const MAX_HEADERS_SIZE: u32 = 2000;
 
 pub struct LearnCoinNode {
     network: LearnCoinNetwork,
     version: u32,
-    blockchain: Blockchain,
+    block_tree: BlockIndex,
+    active_blockchain: Blockchain,
     // A list of peers from which the local node expects a verack message.
     peers_to_receive_verack_from: HashSet<String>,
     // A list of peers from which the local node expects a version message.
     peers_to_receive_version_from: HashSet<String>,
+    initial_block_download_in_progress: bool,
 }
 
 impl LearnCoinNode {
     pub fn connect(network_params: NetworkParams, version: u32) -> Result<Self, String> {
         let network = LearnCoinNetwork::connect(network_params)?;
+        let mut active_blockchain = Blockchain::new(Self::genesis_block());
+
         Ok(Self {
             network,
             version,
-            blockchain: Blockchain::new(Self::genesis_block()),
+            block_tree: BlockIndex::new(Self::genesis_block()),
+            active_blockchain,
             peers_to_receive_verack_from: HashSet::new(),
             peers_to_receive_version_from: HashSet::new(),
+            initial_block_download_in_progress: false,
         })
     }
 
@@ -52,10 +63,6 @@ impl LearnCoinNode {
     }
 
     pub fn run(mut self) -> Result<(), String> {
-        println!(
-            "Genesis: {:#?}",
-            self.blockchain.block_tree().active_blockchain()
-        );
         // A peer that initiates a connection must send the version message.
         // We broadcast the version message to all of our peers before doing any work.
         self.network
@@ -84,6 +91,16 @@ impl LearnCoinNode {
                 }
             }
 
+            let peer_addresses = self
+                .network
+                .peer_addresses()
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+            for peer_address in peer_addresses {
+                self.maybe_send_messages(&peer_address);
+            }
+
             self.network.drop_inactive_peers();
 
             // Waiting strategy to avoid busy loops.
@@ -91,10 +108,29 @@ impl LearnCoinNode {
         }
     }
 
+    fn maybe_send_messages(&mut self, peer_address: &str) {
+        let is_handshake_complete = !self.peers_to_receive_verack_from.contains(peer_address)
+            && !self.peers_to_receive_version_from.contains(peer_address);
+        if !is_handshake_complete {
+            return;
+        }
+
+        if !self.initial_block_download_in_progress {
+            self.initial_block_download_in_progress = true;
+            let locator = self.block_tree.locator(self.active_blockchain.tip().id());
+            self.network
+                .send(peer_address, &PeerMessagePayload::GetHeaders(locator));
+        }
+    }
+
     fn on_message(&mut self, peer_address: &str, message: PeerMessagePayload) {
         match message {
             PeerMessagePayload::Version(version) => self.on_version(peer_address, version),
             PeerMessagePayload::Verack => self.on_version_ack(peer_address),
+            PeerMessagePayload::GetHeaders(block_locator_object) => {
+                self.on_get_headers(peer_address, block_locator_object)
+            }
+            PeerMessagePayload::Headers(headers) => self.on_headers(peer_address, headers),
         }
     }
 
@@ -135,6 +171,72 @@ impl LearnCoinNode {
             );
             return;
         }
+    }
+
+    fn on_get_headers(&mut self, peer_address: &str, block_locator_object: BlockLocatorObject) {
+        let active_blockchain = self
+            .active_blockchain
+            .hashes()
+            .iter()
+            .map(|block| block.header().clone())
+            .collect::<Vec<BlockHeader>>();
+
+        // Find the first block hash in the locator object that is in the active blockchain.
+        // If no such block hash exists, the peer is misbehaving because at least the genesis block
+        // should exist.
+        for locator_hash in block_locator_object.hashes() {
+            match active_blockchain
+                .iter()
+                .position(|header| header.hash() == *locator_hash)
+            {
+                None => {
+                    // No such block exists in the active blockchain.
+                }
+                Some(locator_hash_index) => {
+                    // Found a block that exists in the active blockchain.
+                    // Respond with the headers containing up to MAX_HEADERS_SIZE block hashes.
+                    let headers = active_blockchain
+                        .into_iter()
+                        .skip(locator_hash_index + 1)
+                        .take(MAX_HEADERS_SIZE as usize)
+                        .collect();
+                    self.network
+                        .send(peer_address, &PeerMessagePayload::Headers(headers));
+                    return;
+                }
+            }
+        }
+
+        // No blocks from the locator object have been found. The peer is misbehaving.
+        self.close_peer_connection(
+            peer_address,
+            &format!("Locator object must include the genesis block"),
+        );
+    }
+
+    fn on_headers(&mut self, peer_address: &str, headers: Vec<BlockHeader>) {
+        if headers.is_empty() {
+            // Nothing to do here. Also, we do not request any more headers from the peer.
+            return;
+        }
+
+        // Store headers in the block tree.
+        for header in headers {
+            if !self.block_tree.exists(&header.previous_block_hash()) {
+                // Peer is misbehaving, the headers don't connect.
+                self.close_peer_connection(
+                    peer_address,
+                    "Peer is misbehaving. The block headers do not connect.",
+                );
+                return;
+            }
+            self.block_tree.insert(header);
+        }
+
+        // We request new headers from the peer until we get an empty headers message.`
+        let locator = self.block_tree.locator(self.active_blockchain.tip().id());
+        self.network
+            .send(peer_address, &PeerMessagePayload::GetHeaders(locator));
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {
