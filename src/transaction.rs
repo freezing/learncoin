@@ -1,4 +1,5 @@
 use crate::Sha256;
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 // Set all bits to 0.
@@ -7,7 +8,7 @@ const COINBASE_UTXO_ID: TransactionId = TransactionId(Sha256::from_raw([0; 32]))
 const COINBASE_OUTPUT_INDEX: OutputIndex = OutputIndex::new(-1);
 
 /// A double SHA-256 hash of the transaction data.
-#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Hash, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub struct TransactionId(Sha256);
 
 impl Display for TransactionId {
@@ -27,7 +28,7 @@ impl TransactionId {
 }
 
 /// The index of the transaction output.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct OutputIndex(i32);
 
 impl Display for OutputIndex {
@@ -42,17 +43,17 @@ impl OutputIndex {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct LockingScript {
     // TODO: Left empty until we implement validation.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct UnlockingScript {
     // TODO: Left empty until we implement validation.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TransactionInput {
     // 32 bytes. A pointer to the transaction containing the UTXO to be spent.
     utxo_id: TransactionId,
@@ -100,7 +101,7 @@ impl TransactionInput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TransactionOutput {
     locking_script: LockingScript,
     amount: i64,
@@ -125,7 +126,7 @@ impl TransactionOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Transaction {
     id: TransactionId,
     inputs: Vec<TransactionInput>,

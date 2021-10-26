@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use sha2::Digest;
 use std::fmt::{Debug, Display, Formatter};
 
@@ -6,7 +7,7 @@ const SHA256_BYTE_COUNT: usize = 32;
 /// Sha-256 is a 256-bit array or 32 bytes.
 /// It provides an API to display itself as a hex-encoded string and parse it from a hex-encoded
 /// string.
-#[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Sha256([u8; SHA256_BYTE_COUNT]);
 
 impl Sha256 {
