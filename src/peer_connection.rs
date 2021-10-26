@@ -1,7 +1,15 @@
 use crate::{FlipBuffer, PeerMessageEncoding, PeerMessageHeader, PeerMessagePayload};
-use std::cmp::max;
+use std::fmt::Debug;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
+
+pub struct MessageLogger {}
+
+impl MessageLogger {
+    pub fn log<T: Debug>(prefix: &str, message: &T) {
+        println!("{} {:#?}", prefix, message);
+    }
+}
 
 /// A TCP connection to the peer in the LearnCoin network.
 pub struct PeerConnection {
@@ -54,6 +62,8 @@ impl PeerConnection {
         let total_size = header_size + payload_size as usize;
         let header = PeerMessageHeader::new(payload_size as u32);
 
+        MessageLogger::log("Send:", &payload);
+
         let mut buffer = Self::allocate_buffer(total_size);
         header.encode(&mut buffer[..header_size])?;
         payload.encode(&mut buffer[header_size..])?;
@@ -89,6 +99,7 @@ impl PeerConnection {
             Some(header) => match self.decode_payload(header.payload_size())? {
                 None => Ok(None),
                 Some(payload) => {
+                    MessageLogger::log("Recv:", &payload);
                     // Now that we have decoded the payload, we can drop the used data from
                     // the buffer.
                     self.buffer
@@ -164,6 +175,7 @@ impl PeerConnection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::VersionMessage;
 
     #[test]
     fn encode_decode_header() {
@@ -178,7 +190,7 @@ mod tests {
 
     #[test]
     fn encode_decode_payload() {
-        let payload = PeerMessagePayload::PlaceholderUntilWeImplementProtocol;
+        let payload = PeerMessagePayload::Version(VersionMessage::new(4));
         let payload_size = PeerMessagePayload::encoded_size(&payload).unwrap() as usize;
         let mut buffer = Vec::new();
         buffer.resize(payload_size, 0);

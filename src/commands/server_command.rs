@@ -1,5 +1,9 @@
+use crate::{LearnCoinNode, NetworkParams};
 use clap::{App, Arg, ArgMatches};
 use std::error::Error;
+
+const MAX_RECV_BUFFER_SIZE: usize = 10_000;
+const SOFTWARE_VERSION: u32 = 1;
 
 struct ServerCliOptions {
     address: String,
@@ -49,5 +53,13 @@ pub fn server_command() -> App<'static> {
 }
 
 pub fn run_server_command(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
-    unimplemented!();
+    let options = ServerCliOptions::parse(matches)?;
+    let network_params = NetworkParams::new(
+        options.address.clone(),
+        options.peers.clone(),
+        MAX_RECV_BUFFER_SIZE,
+    );
+    let node = LearnCoinNode::connect(network_params, SOFTWARE_VERSION)?;
+    node.run()?;
+    Ok(())
 }
