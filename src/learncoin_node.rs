@@ -24,20 +24,25 @@ pub struct LearnCoinNode {
 impl LearnCoinNode {
     pub fn connect(network_params: NetworkParams, version: u32) -> Result<Self, String> {
         let mut peer_states = HashMap::new();
+        let genesis_block = Self::genesis_block();
         for peer_address in network_params.peers() {
-            peer_states.insert(peer_address.to_string(), PeerState::new());
+            peer_states.insert(
+                peer_address.to_string(),
+                PeerState::new(*genesis_block.id()),
+            );
         }
         // Initial headers sync is automatically complete if this node is the only node in
         // the network.
         let is_initial_header_sync_complete = network_params.peers().is_empty();
         let network = LearnCoinNetwork::connect(network_params)?;
-        let active_chain = ActiveChain::new(Self::genesis_block());
+        let active_chain = ActiveChain::new(genesis_block.clone());
 
         Ok(Self {
             network,
             version,
             peer_states,
-            block_index: BlockIndex::new(Self::genesis_block()),
+
+            block_index: BlockIndex::new(genesis_block),
             active_chain,
             sync_node: None,
             is_initial_header_sync_complete,
@@ -91,7 +96,7 @@ impl LearnCoinNode {
             // The local node expects the peers that initiated a connection to send the version
             // messages.
             for peer_address in &new_peers {
-                let mut peer_state = PeerState::new();
+                let mut peer_state = PeerState::new(*self.active_chain.genesis().id());
                 peer_state.expect_version_message = true;
                 self.peer_states
                     .insert(peer_address.to_string(), peer_state);
@@ -293,11 +298,25 @@ impl LearnCoinNode {
                 // because it doesn't have anything new.
                 if let Some(sync_node) = &self.sync_node {
                     if sync_node == peer_address {
+                        let sync_node_state = self.peer_states.get(sync_node).unwrap();
+
                         // If the empty headers comes from the sync node, then the node has caught
                         // up with the sync node's view of the active chain.
                         // Therefore, the initial header sync is complete.
                         self.is_initial_header_sync_complete = true;
                         self.sync_node = None;
+
+                        // Send headers message to each peer.
+                        // It's okay to send a redundant headers message to the sync node,
+                        // which will respond with another empty headeres message.
+                        for peer_address in self.peer_addresses() {
+                            // Use last known hash from the sync node as that's the latest
+                            // block hash the node knows about.
+                            let locator =
+                                self.block_index.locator(&sync_node_state.last_known_hash);
+                            self.network
+                                .send(&peer_address, &PeerMessagePayload::GetHeaders(locator));
+                        }
                     }
                 }
             }
@@ -307,6 +326,7 @@ impl LearnCoinNode {
                 self.network
                     .send(peer_address, &PeerMessagePayload::GetHeaders(locator));
                 peer_state.headers_message_sent_at = Some(current_time);
+                peer_state.last_known_hash = last_new_block_hash;
             }
         }
     }
