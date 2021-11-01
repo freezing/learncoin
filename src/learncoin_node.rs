@@ -6,9 +6,10 @@ use crate::{
 };
 use std::collections::HashMap;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const MAX_HEADERS_SIZE: u32 = 2000;
+const HEADERS_RESPONSE_TIMEOUT: Duration = Duration::from_millis(60_000);
 
 pub struct LearnCoinNode {
     network: LearnCoinNetwork,
@@ -81,6 +82,8 @@ impl LearnCoinNode {
         }
 
         loop {
+            let current_time = Instant::now();
+
             let new_peers = self.network.accept_new_peers()?;
             if !new_peers.is_empty() {
                 println!("New peers connected: {:#?}", new_peers);
@@ -98,12 +101,13 @@ impl LearnCoinNode {
             let all_messages = self.network.receive_all();
             for (peer_address, messages) in all_messages {
                 for message in messages {
-                    self.on_message(&peer_address, message);
+                    self.on_message(&peer_address, message, current_time);
                 }
             }
 
             for peer_address in self.peer_addresses() {
-                self.maybe_send_messages(&peer_address);
+                self.maybe_send_messages(&peer_address, current_time);
+                self.check_timeouts(&peer_address, current_time);
             }
 
             self.network.drop_misbehaving_peers();
@@ -113,7 +117,7 @@ impl LearnCoinNode {
         }
     }
 
-    fn maybe_send_messages(&mut self, peer_address: &str) {
+    fn maybe_send_messages(&mut self, peer_address: &str, current_time: Instant) {
         let peer_state = self.peer_states.get_mut(peer_address).unwrap();
 
         // Send initial HEADERS message.
@@ -132,17 +136,53 @@ impl LearnCoinNode {
             let locator = self.block_index.locator(self.active_chain.tip().id());
             self.network
                 .send(peer_address, &PeerMessagePayload::GetHeaders(locator));
+            peer_state.headers_message_sent_at = Some(current_time);
         }
     }
 
-    fn on_message(&mut self, peer_address: &str, message: PeerMessagePayload) {
+    fn check_timeouts(&mut self, peer_address: &str, current_time: Instant) {
+        let peer_state = self.peer_states.get_mut(peer_address).unwrap();
+        match peer_state.headers_message_sent_at {
+            None => {
+                // Nothing to do since there are no in-flight headers messages.
+            }
+            Some(headers_message_sent_at) => {
+                let elapsed = current_time.duration_since(headers_message_sent_at);
+                if elapsed.gt(&HEADERS_RESPONSE_TIMEOUT) {
+                    self.close_peer_connection(
+                        peer_address,
+                        &format!(
+                            "Response to getheaders has timed out after {} ms",
+                            HEADERS_RESPONSE_TIMEOUT.as_millis()
+                        ),
+                    );
+
+                    // If it's the sync node that didn't respond, it is not a sync node anymore.
+                    if let Some(sync_node) = &self.sync_node {
+                        if sync_node == peer_address {
+                            self.sync_node = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn on_message(
+        &mut self,
+        peer_address: &str,
+        message: PeerMessagePayload,
+        current_time: Instant,
+    ) {
         match message {
             PeerMessagePayload::Version(version) => self.on_version(peer_address, version),
             PeerMessagePayload::Verack => self.on_version_ack(peer_address),
             PeerMessagePayload::GetHeaders(block_locator_object) => {
                 self.on_get_headers(peer_address, block_locator_object)
             }
-            PeerMessagePayload::Headers(headers) => self.on_headers(peer_address, headers),
+            PeerMessagePayload::Headers(headers) => {
+                self.on_headers(peer_address, headers, current_time)
+            }
         }
     }
 
@@ -228,7 +268,10 @@ impl LearnCoinNode {
         );
     }
 
-    fn on_headers(&mut self, peer_address: &str, headers: Vec<BlockHeader>) {
+    fn on_headers(&mut self, peer_address: &str, headers: Vec<BlockHeader>, current_time: Instant) {
+        let mut peer_state = self.peer_states.get_mut(peer_address).unwrap();
+        peer_state.headers_message_sent_at = None;
+
         let mut last_new_block_hash = None;
         for header in headers {
             if !self.block_index.exists(&header.previous_block_hash()) {
@@ -263,6 +306,7 @@ impl LearnCoinNode {
                 let locator = self.block_index.locator(&last_new_block_hash);
                 self.network
                     .send(peer_address, &PeerMessagePayload::GetHeaders(locator));
+                peer_state.headers_message_sent_at = Some(current_time);
             }
         }
     }
