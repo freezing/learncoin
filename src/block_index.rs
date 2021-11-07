@@ -62,6 +62,16 @@ impl BlockIndex {
         assert!(previous.is_none());
     }
 
+    pub fn get_block_index_node(&self, block_hash: &BlockHash) -> Option<&BlockIndexNode> {
+        self.tree.get(block_hash)
+    }
+
+    pub fn parent(&self, block_hash: &BlockHash) -> Option<BlockHash> {
+        self.tree
+            .get(block_hash)
+            .map(|node| node.block_header.previous_block_hash())
+    }
+
     /// Returns the ancestor of the given block hash at the given height or
     /// None if the given block hash doesn't exist in the tree.
     ///
