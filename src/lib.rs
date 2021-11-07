@@ -2,6 +2,7 @@ pub mod active_chain;
 pub mod block;
 pub mod block_index;
 pub mod block_locator_object;
+pub mod block_storage;
 pub mod commands;
 pub mod flip_buffer;
 pub mod hash;
