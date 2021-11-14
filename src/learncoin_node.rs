@@ -1,9 +1,9 @@
 use crate::block_index::BlockIndex;
 use crate::block_storage::BlockStorage;
 use crate::{
-    ActiveChain, Block, BlockHash, BlockHeader, BlockLocatorObject, LearnCoinNetwork, MerkleTree,
-    NetworkParams, PeerMessagePayload, PeerState, ProofOfWork, Sha256, Transaction,
-    TransactionInput, TransactionOutput, VersionMessage,
+    ActiveChain, Block, BlockHash, BlockHeader, BlockLocatorObject, JsonRpcMethod, JsonRpcRequest,
+    JsonRpcResponse, LearnCoinNetwork, MerkleTree, NetworkParams, PeerMessagePayload, PeerState,
+    ProofOfWork, Sha256, Transaction, TransactionInput, TransactionOutput, VersionMessage,
 };
 use std::cmp::min;
 use std::collections::HashMap;
@@ -341,6 +341,12 @@ impl LearnCoinNode {
                 self.on_get_block_data(peer_address, block_hashes)
             }
             PeerMessagePayload::Block(block) => self.on_block(peer_address, block),
+            PeerMessagePayload::JsonRpcRequest(request) => {
+                self.on_json_rpc_request(peer_address, request)
+            }
+            PeerMessagePayload::JsonRpcResponse(response) => {
+                self.on_json_rpc_response(peer_address, response)
+            }
         }
     }
 
@@ -513,6 +519,23 @@ impl LearnCoinNode {
         peer_state.num_blocks_in_transit -= 1;
         self.in_flight_block_requests.remove(block.id());
         self.block_storage.insert(block);
+    }
+
+    fn on_json_rpc_request(&mut self, peer_address: &str, request: JsonRpcRequest) {
+        let JsonRpcRequest { id, method } = request;
+        match method {
+            JsonRpcMethod::Placeholder => {}
+        }
+    }
+
+    fn on_json_rpc_response(&mut self, peer_address: &str, response: JsonRpcResponse) {
+        // Node doesn't use JSON-RPC to invoke methods on any node, so it doesn't expect any
+        // responses in return.
+        // The peer is misbehaving.
+        self.close_peer_connection(
+            peer_address,
+            &format!("Received JSON-RPC response: {:#?}", response),
+        );
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {
