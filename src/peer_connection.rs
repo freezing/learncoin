@@ -6,8 +6,8 @@ use std::net::{SocketAddr, TcpStream};
 pub struct MessageLogger {}
 
 impl MessageLogger {
-    pub fn log<T: Debug>(prefix: &str, message: &T) {
-        println!("{} {:#?}", prefix, message);
+    pub fn log<T: Debug>(prefix: &str, peer_address: &str, message: &T) {
+        println!("[{}] {} {:#?}", peer_address, prefix, message);
     }
 }
 
@@ -62,7 +62,7 @@ impl PeerConnection {
         let total_size = header_size + payload_size as usize;
         let header = PeerMessageHeader::new(payload_size as u32);
 
-        MessageLogger::log("Send:", &payload);
+        MessageLogger::log("Send:", &self.peer_address, payload);
 
         let mut buffer = Self::allocate_buffer(total_size);
         header.encode(&mut buffer[..header_size])?;
@@ -99,7 +99,7 @@ impl PeerConnection {
             Some(header) => match self.decode_payload(header.payload_size())? {
                 None => Ok(None),
                 Some(payload) => {
-                    MessageLogger::log("Recv:", &payload);
+                    MessageLogger::log("Recv:", &self.peer_address, &payload);
                     // Now that we have decoded the payload, we can drop the used data from
                     // the buffer.
                     self.buffer
