@@ -459,6 +459,8 @@ impl LearnCoinNode {
                         self.is_initial_header_sync_complete = true;
                         self.sync_node = None;
 
+                        println!("Initial headers sync complete.");
+
                         // Send headers message to each peer.
                         // It's okay to send a redundant headers message to the sync node,
                         // which will respond with another empty headeres message.
