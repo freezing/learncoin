@@ -1,8 +1,7 @@
+use crate::{PeerConnection, PeerMessagePayload};
 use std::collections::HashSet;
 use std::io::ErrorKind;
 use std::net::{SocketAddr, TcpListener, TcpStream};
-
-use crate::{PeerConnection, PeerMessagePayload};
 
 pub struct NetworkParams {
     // Address at which TCP server (which listens for peer connections) runs.
@@ -24,6 +23,16 @@ impl NetworkParams {
             peers: peer_addresses,
             recv_buffer_size,
         }
+    }
+
+    pub fn server_address(&self) -> &str {
+        &self.server_address
+    }
+    pub fn peers(&self) -> &Vec<String> {
+        &self.peers
+    }
+    pub fn recv_buffer_size(&self) -> usize {
+        self.recv_buffer_size
     }
 }
 
@@ -228,6 +237,7 @@ impl LearnCoinNetwork {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::VersionMessage;
 
     #[test]
     fn send_receive() {
@@ -242,7 +252,7 @@ mod tests {
         let connected_peers = network.accept_new_peers().unwrap();
         assert_eq!(connected_peers.len(), 1);
 
-        let payload = PeerMessagePayload::PlaceholderUntilWeImplementProtocol;
+        let payload = PeerMessagePayload::Version(VersionMessage::new(1));
         let is_sent = connection_b.send(&payload).unwrap();
         assert!(is_sent);
 
