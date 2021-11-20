@@ -1,4 +1,4 @@
-use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject, Transaction};
+use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject, PublicKeyAddress, Transaction};
 use serde::{Deserialize, Serialize};
 
 /// Metadata about the MessagePayload.
@@ -35,8 +35,21 @@ impl VersionMessage {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct BlockTemplate {
+    pub previous_block_hash: BlockHash,
+    pub transactions: Vec<Transaction>,
+    pub difficulty_target: u32,
+    pub height: u32,
+    pub public_key_address: PublicKeyAddress,
+    pub current_time: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum JsonRpcMethod {
-    Placeholder,
+    // Expects BlockTemplate in response.
+    GetBlockTemplate,
+    // Expects Notification in response.
+    SubmitBlock(Block),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -48,6 +61,7 @@ pub struct JsonRpcRequest {
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum JsonRpcResult {
     Notification,
+    BlockTemplate(BlockTemplate),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]

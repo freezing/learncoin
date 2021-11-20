@@ -524,7 +524,7 @@ impl LearnCoinNode {
     fn on_json_rpc_request(&mut self, peer_address: &str, request: JsonRpcRequest) {
         let JsonRpcRequest { id, method } = request;
         match method {
-            JsonRpcMethod::Placeholder => {}
+            _ => {}
         }
     }
 
