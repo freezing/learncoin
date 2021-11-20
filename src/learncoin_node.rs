@@ -1,14 +1,15 @@
 use crate::block_index::BlockIndex;
 use crate::block_storage::BlockStorage;
 use crate::{
-    ActiveChain, Block, BlockHash, BlockHeader, BlockLocatorObject, JsonRpcMethod, JsonRpcRequest,
-    JsonRpcResponse, LearnCoinNetwork, MerkleTree, NetworkParams, PeerMessagePayload, PeerState,
-    ProofOfWork, Sha256, Transaction, TransactionInput, TransactionOutput, VersionMessage,
+    ActiveChain, Block, BlockHash, BlockHeader, BlockLocatorObject, BlockTemplate, JsonRpcMethod,
+    JsonRpcRequest, JsonRpcResponse, JsonRpcResult, LearnCoinNetwork, MerkleTree, NetworkParams,
+    PeerMessagePayload, PeerState, ProofOfWork, PublicKeyAddress, Sha256, Transaction,
+    TransactionInput, TransactionOutput, VersionMessage,
 };
 use std::cmp::min;
 use std::collections::HashMap;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const MAX_HEADERS_SIZE: u32 = 2000;
 const BLOCK_DOWNLOAD_WINDOW: usize = 1024;
@@ -44,6 +45,7 @@ impl LearnCoinNode {
                 PeerState::new(*genesis_block.id()),
             );
         }
+
         // Initial headers sync is automatically complete if this node is the only node in
         // the network.
         let is_initial_header_sync_complete = network_params.peers().is_empty();
@@ -65,7 +67,7 @@ impl LearnCoinNode {
 
     pub fn genesis_block() -> Block {
         // 02 Sep 2021 at ~08:58
-        let timestamp = 1630569467;
+        let timestamp = 1630569467 as u64;
         const GENESIS_REWARD: i64 = 50;
         let inputs = vec![TransactionInput::new_coinbase()];
         let outputs = vec![TransactionOutput::new(GENESIS_REWARD)];
@@ -102,6 +104,10 @@ impl LearnCoinNode {
 
         loop {
             let current_time = Instant::now();
+            let unix_timestamp = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
 
             let new_peers = self.network.accept_new_peers()?;
             if !new_peers.is_empty() {
@@ -120,7 +126,7 @@ impl LearnCoinNode {
             let all_messages = self.network.receive_all();
             for (peer_address, messages) in all_messages {
                 for message in messages {
-                    self.on_message(&peer_address, message, current_time);
+                    self.on_message(&peer_address, message, current_time, unix_timestamp);
                 }
             }
 
@@ -327,6 +333,7 @@ impl LearnCoinNode {
         peer_address: &str,
         message: PeerMessagePayload,
         current_time: Instant,
+        unix_timestamp: u64,
     ) {
         match message {
             PeerMessagePayload::Version(version) => self.on_version(peer_address, version),
@@ -342,7 +349,7 @@ impl LearnCoinNode {
             }
             PeerMessagePayload::Block(block) => self.on_block(peer_address, block),
             PeerMessagePayload::JsonRpcRequest(request) => {
-                self.on_json_rpc_request(peer_address, request)
+                self.on_json_rpc_request(peer_address, request, unix_timestamp)
             }
             PeerMessagePayload::JsonRpcResponse(response) => {
                 self.on_json_rpc_response(peer_address, response)
@@ -521,10 +528,18 @@ impl LearnCoinNode {
         self.block_storage.insert(block);
     }
 
-    fn on_json_rpc_request(&mut self, peer_address: &str, request: JsonRpcRequest) {
+    fn on_json_rpc_request(
+        &mut self,
+        peer_address: &str,
+        request: JsonRpcRequest,
+        unix_timestamp: u64,
+    ) {
         let JsonRpcRequest { id, method } = request;
         match method {
-            _ => {}
+            JsonRpcMethod::GetBlockTemplate => {
+                self.on_get_block_template(peer_address, id, unix_timestamp)
+            }
+            JsonRpcMethod::SubmitBlock(block) => self.on_submit_block(peer_address, id, block),
         }
     }
 
@@ -536,6 +551,58 @@ impl LearnCoinNode {
             peer_address,
             &format!("Received JSON-RPC response: {:#?}", response),
         );
+    }
+
+    fn on_get_block_template(&mut self, peer_address: &str, id: u64, unix_timestamp: u64) {
+        let tip = self.active_chain.tip();
+        let block_template = BlockTemplate {
+            previous_block_hash: *tip.id(),
+            // TODO: Keep track of pending transactions.
+            transactions: vec![],
+            // TODO: Calculate difficulty target.
+            difficulty_target: 28,
+            height: self
+                .block_index
+                .get_block_index_node(tip.id())
+                .unwrap()
+                .height as u32,
+            // TODO: Choose appropriate PublicKeyAddress.
+            public_key_address: PublicKeyAddress {},
+            current_time: unix_timestamp,
+        };
+        let result = Ok(JsonRpcResult::BlockTemplate(block_template));
+        let response = JsonRpcResponse { id, result };
+        self.network
+            .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
+    }
+
+    fn on_submit_block(&mut self, peer_address: &str, id: u64, block: Block) {
+        let result = Ok(JsonRpcResult::Notification);
+        let response = JsonRpcResponse { id, result };
+        self.network
+            .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
+
+        if !self
+            .block_index
+            .exists(&block.header().previous_block_hash())
+            && !self.block_index.exists(block.id())
+        {
+            self.close_peer_connection(
+                peer_address,
+                &format!(
+                    "Miner submitted a block without a valid parent: {:#?}",
+                    block
+                ),
+            );
+        } else {
+            self.block_index.insert(block.header().clone());
+            self.block_storage.insert(block.clone());
+            self.relay_block(block);
+        }
+    }
+
+    fn relay_block(&mut self, block: Block) {
+        println!("Submitted block: {:#?}", block);
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {
