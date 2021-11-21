@@ -1,4 +1,4 @@
-use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject};
+use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject, PublicKeyAddress, Transaction};
 use serde::{Deserialize, Serialize};
 
 /// Metadata about the MessagePayload.
@@ -34,6 +34,42 @@ impl VersionMessage {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct BlockTemplate {
+    pub previous_block_hash: BlockHash,
+    pub transactions: Vec<Transaction>,
+    pub difficulty_target: u32,
+    pub height: u32,
+    pub public_key_address: PublicKeyAddress,
+    pub current_time: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub enum JsonRpcMethod {
+    // Expects BlockTemplate in response.
+    GetBlockTemplate,
+    // Expects Notification in response.
+    SubmitBlock(Block),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct JsonRpcRequest {
+    pub id: u64,
+    pub method: JsonRpcMethod,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub enum JsonRpcResult {
+    Notification,
+    BlockTemplate(BlockTemplate),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
+pub struct JsonRpcResponse {
+    pub id: u64,
+    pub result: Result<JsonRpcResult, String>,
+}
+
 /// Payload sent to and received from the peers.
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub enum PeerMessagePayload {
@@ -43,6 +79,8 @@ pub enum PeerMessagePayload {
     Headers(Vec<BlockHeader>),
     GetBlockData(Vec<BlockHash>),
     Block(Block),
+    JsonRpcRequest(JsonRpcRequest),
+    JsonRpcResponse(JsonRpcResponse),
 }
 
 /// An API to encode and decode peer messages.

@@ -12,14 +12,16 @@ impl ProofOfWork {
     /// zeros satisfy the difficulty requirements.
     /// For example, if the difficulty is 5, the numbers (in binary format) starting with 5 zeros
     /// satisfy the criteria.
-    pub fn compute_nonce(
+    pub fn compute_nonce_with_checkpoint(
         previous_block_hash: &BlockHash,
         merkle_root: &MerkleHash,
         timestamp: u64,
         difficulty: u32,
+        start_nonce: u32,
+        stop_nonce: u32,
     ) -> Option<u32> {
         let target_hash = Self::target_hash(difficulty);
-        let mut nonce = 0 as u32;
+        let mut nonce = start_nonce;
         loop {
             let block_header = BlockHeader::new(
                 previous_block_hash.clone(),
@@ -32,13 +34,31 @@ impl ProofOfWork {
                 return Some(nonce);
             }
 
-            if nonce == u32::MAX {
+            if nonce == u32::MAX || nonce == stop_nonce {
                 // We have run out of nonce values, stop the computation.
                 break;
             }
             nonce += 1;
         }
         None
+    }
+
+    pub fn compute_nonce(
+        previous_block_hash: &BlockHash,
+        merkle_root: &MerkleHash,
+        timestamp: u64,
+        difficulty: u32,
+    ) -> Option<u32> {
+        let start_nonce = 0;
+        let stop_nonce = u32::MAX;
+        Self::compute_nonce_with_checkpoint(
+            previous_block_hash,
+            merkle_root,
+            timestamp,
+            difficulty,
+            start_nonce,
+            stop_nonce,
+        )
     }
 
     /// Checks whether the given block header is less than or equal to the given target hash.
