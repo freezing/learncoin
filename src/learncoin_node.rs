@@ -351,6 +351,7 @@ impl LearnCoinNode {
                 self.on_get_block_data(peer_address, block_hashes)
             }
             PeerMessagePayload::Block(block) => self.on_block(peer_address, block),
+            PeerMessagePayload::BlockRelay(block) => self.on_relay_block(peer_address, block),
             PeerMessagePayload::JsonRpcRequest(request) => {
                 self.on_json_rpc_request(peer_address, request, unix_timestamp)
             }
@@ -597,14 +598,41 @@ impl LearnCoinNode {
                 ),
             );
         } else if !self.block_index.exists(block.id()) {
+            // TODO: Validation
             self.block_index.insert(block.header().clone());
             self.block_storage.insert(block.clone());
-            self.relay_block(block);
+            self.network
+                .send_to_all(&PeerMessagePayload::BlockRelay(block));
         }
     }
 
-    fn relay_block(&mut self, block: Block) {
-        println!("Submitted block: {:#?}", block);
+    fn on_relay_block(&mut self, peer_address: &str, block: Block) {
+        let mut peer_state = self.peer_states.get_mut(peer_address).unwrap();
+        if !self
+            .block_index
+            .exists(&block.header().previous_block_hash())
+        {
+            // If the block doesn't connect, request headers and let the IBD process sync the
+            // block.
+            let block_locator_object = self.block_index.locator(&peer_state.last_common_block);
+            self.network.send(
+                peer_address,
+                &PeerMessagePayload::GetHeaders(block_locator_object),
+            );
+            return;
+        }
+
+        if self.block_index.exists(block.id()) {
+            // If the block already exists, ignore it.
+            return;
+        }
+
+        // The block connects.
+        self.block_index.insert(block.header().clone());
+        self.block_storage.insert(block.clone());
+        // TODO: Validation
+        self.network
+            .send_to_all(&PeerMessagePayload::BlockRelay(block));
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {

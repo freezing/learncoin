@@ -79,6 +79,7 @@ pub enum PeerMessagePayload {
     Headers(Vec<BlockHeader>),
     GetBlockData(Vec<BlockHash>),
     Block(Block),
+    BlockRelay(Block),
     JsonRpcRequest(JsonRpcRequest),
     JsonRpcResponse(JsonRpcResponse),
 }
