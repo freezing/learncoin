@@ -1,4 +1,4 @@
-use crate::Block;
+use crate::{Block, BlockHash};
 
 /// Represents an active chain in the blockchain.
 pub struct ActiveChain {
@@ -23,6 +23,13 @@ impl ActiveChain {
 
     pub fn accept_block(&mut self, block: Block) {
         self.hashes.push(block);
+    }
+
+    /// Removes the last block in the active chain.
+    /// May only be called when the tip is not the genesis block.
+    pub fn remove_tip(&mut self) -> Block {
+        assert!(self.hashes.len() > 1);
+        self.hashes.pop().unwrap()
     }
 
     pub fn hashes(&self) -> &Vec<Block> {

@@ -530,6 +530,7 @@ impl LearnCoinNode {
         peer_state.num_blocks_in_transit -= 1;
         self.in_flight_block_requests.remove(block.id());
         self.block_storage.insert(block.clone());
+        self.maybe_update_active_chain(block.id());
     }
 
     fn on_json_rpc_request(
@@ -601,6 +602,7 @@ impl LearnCoinNode {
             // TODO: Validation
             self.block_index.insert(block.header().clone());
             self.block_storage.insert(block.clone());
+            self.maybe_update_active_chain(block.id());
             self.network
                 .send_to_all(&PeerMessagePayload::BlockRelay(block));
         }
@@ -630,9 +632,46 @@ impl LearnCoinNode {
         // The block connects.
         self.block_index.insert(block.header().clone());
         self.block_storage.insert(block.clone());
+        self.maybe_update_active_chain(block.id());
         // TODO: Validation
         self.network
             .send_to_all(&PeerMessagePayload::BlockRelay(block));
+    }
+
+    fn maybe_update_active_chain(&mut self, candidate_block_hash: &BlockHash) {
+        let active_tip = self
+            .block_index
+            .get_block_index_node(self.active_chain.tip().id())
+            .unwrap();
+        let candidate = self
+            .block_index
+            .get_block_index_node(candidate_block_hash)
+            .unwrap();
+
+        if active_tip.chain_work < candidate.chain_work {
+            let (lowest_common_ancestor, active_path, mut candidate_path) = self
+                .block_index
+                .find_fork(
+                    &active_tip.block_header.hash(),
+                    &candidate.block_header.hash(),
+                )
+                .unwrap();
+            // Remove blocks from the active chain until the LCA becomes the new tip.
+            while self.active_chain.tip().header().hash() != lowest_common_ancestor {
+                let removed = self.active_chain.remove_tip();
+                assert_eq!(*removed.id(), *active_path.last().unwrap());
+            }
+            assert_eq!(
+                self.active_chain.tip().header().hash(),
+                lowest_common_ancestor
+            );
+            // Add new blocks to the active chain.
+            candidate_path.reverse();
+            for new_tip_hash in candidate_path {
+                let new_tip_block = self.block_storage.get(&new_tip_hash).unwrap();
+                self.active_chain.accept_block(new_tip_block.clone());
+            }
+        }
     }
 
     fn close_peer_connection(&mut self, peer_address: &str, reason: &str) {
