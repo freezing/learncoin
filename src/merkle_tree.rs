@@ -1,8 +1,9 @@
 use crate::{Sha256, Transaction};
+use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 /// Represents a SHA-256 hash of a Merkle tree node.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct MerkleHash(Sha256);
 
 impl MerkleHash {
