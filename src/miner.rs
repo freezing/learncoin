@@ -7,7 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const INITIAL_BLOCK_REWARD: i64 = 50;
 const MINER_VERSION: u32 = 1;
-const NONCE_BATCH_SIZE: u32 = 100_000_000;
+const NONCE_BATCH_SIZE: u32 = 1_000_000;
 const NUM_BLOCKS_AFTER_REWARD_IS_HALVED: u32 = 2016;
 
 pub struct MinerParams {
@@ -150,6 +150,9 @@ impl Miner {
             Err(e) => {
                 // None of the requests should fail.
                 eprintln!("Unexpected failed result for: {:#?}: {}", response, e);
+            }
+            Ok(unexpected) => {
+                eprintln!("Unexpected result: {:#?}", unexpected);
             }
         }
     }

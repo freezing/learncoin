@@ -50,6 +50,8 @@ pub enum JsonRpcMethod {
     GetBlockTemplate,
     // Expects Notification in response.
     SubmitBlock(Block),
+    // Expects Blockchain in response.
+    GetBlockchain,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -62,6 +64,8 @@ pub struct JsonRpcRequest {
 pub enum JsonRpcResult {
     Notification,
     BlockTemplate(BlockTemplate),
+    // Blockchain(list of all blocks headers, list of active blocks).
+    Blockchain(Vec<BlockHeader>, Vec<Block>),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
