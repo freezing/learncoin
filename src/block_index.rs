@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject};
+use std::cmp::Ordering;
 
 /// Represents a node of the tree, which is an implementation detail of the block tree, so it's not
 /// part of the API.
@@ -132,5 +133,55 @@ impl BlockIndex {
             }
         }
         BlockLocatorObject::new(hashes)
+    }
+
+    /// Returns the fork, as well as paths from each node to the fork, excluding the fork.
+    /// Fork is a block which is the lowest common ancestor for the given nodes that has
+    /// multiple children.
+    /// Returns None if any of the blocks doesn't exist.
+    pub fn find_fork(
+        &self,
+        hash_a: &BlockHash,
+        hash_b: &BlockHash,
+    ) -> Option<(BlockHash, Vec<BlockHash>, Vec<BlockHash>)> {
+        let mut path_a = vec![];
+        let mut path_b = vec![];
+
+        let mut hash_a = *hash_a;
+        let mut hash_b = *hash_b;
+
+        // Bring them to the same height.
+        loop {
+            match (self.tree.get(&hash_a), self.tree.get(&hash_b)) {
+                // If any of the nodes doesn't exist in the tree, then fork doesn't exist neither.
+                (None, _) | (_, None) => return None,
+                (Some(a), Some(b)) => match a.height.cmp(&b.height) {
+                    Ordering::Less => {
+                        path_b.push(hash_b);
+                        hash_b = b.block_header.previous_block_hash();
+                    }
+                    Ordering::Equal => break,
+                    Ordering::Greater => {
+                        path_a.push(hash_a);
+                        hash_a = a.block_header.previous_block_hash();
+                    }
+                },
+            };
+        }
+
+        // Go to the parent block, until pointers are the same.
+        while hash_a != hash_b {
+            match (self.tree.get(&hash_a), self.tree.get(&hash_b)) {
+                (None, _) | (_, None) => return None,
+                (Some(a), Some(b)) => {
+                    path_a.push(hash_a);
+                    path_b.push(hash_b);
+
+                    hash_a = a.block_header.previous_block_hash();
+                    hash_b = b.block_header.previous_block_hash();
+                }
+            }
+        }
+        Some((hash_a, path_a, path_b))
     }
 }
