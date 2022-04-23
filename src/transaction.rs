@@ -1,4 +1,4 @@
-use crate::Sha256;
+use crate::{PublicKey, Sha256};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
@@ -28,7 +28,7 @@ impl TransactionId {
 }
 
 /// The index of the transaction output.
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Hash, Copy, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct OutputIndex(i32);
 
 impl Display for OutputIndex {
@@ -41,11 +41,31 @@ impl OutputIndex {
     pub const fn new(index: i32) -> Self {
         Self(index)
     }
+
+    pub fn value(&self) -> i32 {
+        self.0
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct LockingScript {
-    // TODO: Left empty until we implement validation.
+    public_key: PublicKey,
+}
+
+impl LockingScript {
+    pub fn new(public_key: PublicKey) -> Self {
+        Self { public_key }
+    }
+
+    pub fn public_key(&self) -> &PublicKey {
+        &self.public_key
+    }
+}
+
+impl Display for LockingScript {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.public_key)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -109,14 +129,14 @@ pub struct TransactionOutput {
 
 impl Display for TransactionOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.amount)
+        write!(f, "{}:{}", self.locking_script, self.amount)
     }
 }
 
 impl TransactionOutput {
-    pub fn new(amount: i64) -> Self {
+    pub fn new(amount: i64, locking_script: LockingScript) -> Self {
         Self {
-            locking_script: LockingScript {},
+            locking_script,
             amount,
         }
     }
@@ -124,23 +144,30 @@ impl TransactionOutput {
     pub fn amount(&self) -> i64 {
         self.amount
     }
+
+    pub fn locking_script(&self) -> &LockingScript {
+        &self.locking_script
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Transaction {
     id: TransactionId,
+    minimum_block_height: u32,
     inputs: Vec<TransactionInput>,
     outputs: Vec<TransactionOutput>,
 }
 
 impl Transaction {
     pub fn new(
+        minimum_block_height: u32,
         inputs: Vec<TransactionInput>,
         outputs: Vec<TransactionOutput>,
     ) -> Result<Self, String> {
-        let id = Self::hash_transaction_data(&inputs, &outputs);
+        let id = Self::hash_transaction_data(minimum_block_height, &inputs, &outputs);
         let transaction = Self {
             id,
+            minimum_block_height,
             inputs,
             outputs,
         };
@@ -152,6 +179,10 @@ impl Transaction {
         &self.id
     }
 
+    pub fn block_height(&self) -> u32 {
+        self.minimum_block_height
+    }
+
     pub fn inputs(&self) -> &Vec<TransactionInput> {
         &self.inputs
     }
@@ -161,11 +192,13 @@ impl Transaction {
     }
 
     fn hash_transaction_data(
+        block_height: u32,
         inputs: &Vec<TransactionInput>,
         outputs: &Vec<TransactionOutput>,
     ) -> TransactionId {
         let data = format!(
-            "{}{}",
+            "{}-{}-{}",
+            block_height,
             inputs
                 .iter()
                 .map(TransactionInput::to_string)

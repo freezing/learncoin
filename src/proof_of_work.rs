@@ -102,7 +102,9 @@ impl ProofOfWork {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MerkleTree, Transaction, TransactionInput, TransactionOutput};
+    use crate::{
+        LockingScript, MerkleTree, PublicKey, Transaction, TransactionInput, TransactionOutput,
+    };
 
     #[test]
     fn pow_difficulty_at_least_1_leading_bit_zero() {
@@ -194,9 +196,10 @@ mod tests {
 
     fn create_transactions() -> Vec<Transaction> {
         let address = "example address".to_string();
+        let locking_script = LockingScript::new(PublicKey::new(address));
         let amount = 50;
         let inputs = vec![TransactionInput::new_coinbase()];
-        let outputs = vec![TransactionOutput::new(amount)];
-        vec![Transaction::new(inputs, outputs).unwrap()]
+        let outputs = vec![TransactionOutput::new(amount, locking_script)];
+        vec![Transaction::new(0, inputs, outputs).unwrap()]
     }
 }

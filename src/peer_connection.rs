@@ -1,13 +1,22 @@
 use crate::{FlipBuffer, PeerMessageEncoding, PeerMessageHeader, PeerMessagePayload};
+use chrono::Local;
 use std::fmt::Debug;
 use std::io::{ErrorKind, Read, Write};
 use std::net::{SocketAddr, TcpStream};
+use std::time::{Instant, SystemTime};
 
 pub struct MessageLogger {}
 
 impl MessageLogger {
     pub fn log<T: Debug>(prefix: &str, peer_address: &str, message: &T) {
-        println!("[{}] {} {:#?}", peer_address, prefix, message);
+        let now = Local::now();
+        println!(
+            "[{}] [{}] {} {:#?}",
+            peer_address,
+            now.format("%Y-%m-%d][%H:%M:%S%.6f"),
+            prefix,
+            message
+        );
     }
 }
 

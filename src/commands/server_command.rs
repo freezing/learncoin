@@ -1,4 +1,4 @@
-use crate::{LearnCoinNode, NetworkParams};
+use crate::{LearnCoinNode, NetworkParams, PublicKey};
 use clap::{App, Arg, ArgMatches};
 use std::error::Error;
 
@@ -8,6 +8,7 @@ const SOFTWARE_VERSION: u32 = 1;
 struct ServerCliOptions {
     address: String,
     peers: Vec<String>,
+    miner_public_key: PublicKey,
 }
 
 impl ServerCliOptions {
@@ -20,9 +21,13 @@ impl ServerCliOptions {
             .map(|s| s.to_string())
             .collect();
 
+        let miner_public_key =
+            PublicKey::new(matches.value_of("miner-public-key").unwrap().to_owned());
+
         Ok(Self {
             address: matches.value_of("address").unwrap().to_string(),
             peers,
+            miner_public_key,
         })
     }
 }
@@ -50,6 +55,14 @@ pub fn server_command() -> App<'static> {
                 .default_values(vec![].as_slice())
                 .required(false),
         )
+        .arg(
+            Arg::new("miner-public-key")
+                .long("miner-public-key")
+                .about("PUBLIC_KEY to lock the transaction output of the coinbase transaction.")
+                .takes_value(true)
+                .required(true)
+                .default_value("genesis-address"),
+        )
 }
 
 pub fn run_server_command(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
@@ -59,7 +72,7 @@ pub fn run_server_command(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
         options.peers.clone(),
         MAX_RECV_BUFFER_SIZE,
     );
-    let node = LearnCoinNode::connect(network_params, SOFTWARE_VERSION)?;
+    let node = LearnCoinNode::connect(network_params, options.miner_public_key, SOFTWARE_VERSION)?;
     node.run()?;
     Ok(())
 }
