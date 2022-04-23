@@ -1,6 +1,7 @@
 use crate::{Block, BlockHash, BlockHeader, Sha256};
 use std::fmt::Write;
 
+// TODO: Should be moved to the commands/ folder.
 pub struct Graphwiz {}
 
 impl Graphwiz {

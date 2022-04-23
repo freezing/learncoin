@@ -1,4 +1,7 @@
-use crate::{Block, BlockHash, BlockHeader, BlockLocatorObject, PublicKeyAddress, Transaction};
+use crate::{
+    Block, BlockHash, BlockHeader, BlockLocatorObject, PublicKey, Transaction, TransactionId,
+    TransactionInput, TransactionOutput,
+};
 use serde::{Deserialize, Serialize};
 
 /// Metadata about the MessagePayload.
@@ -40,7 +43,7 @@ pub struct BlockTemplate {
     pub transactions: Vec<Transaction>,
     pub difficulty_target: u32,
     pub height: u32,
-    pub public_key_address: PublicKeyAddress,
+    pub public_key: PublicKey,
     pub current_time: u64,
 }
 
@@ -52,6 +55,8 @@ pub enum JsonRpcMethod {
     SubmitBlock(Block),
     // Expects Blockchain in response.
     GetBlockchain,
+    // Expects TransactionId in response.
+    SendTransaction(TransactionInput, Vec<TransactionOutput>),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -66,6 +71,7 @@ pub enum JsonRpcResult {
     BlockTemplate(BlockTemplate),
     // Blockchain(list of all blocks headers, list of active blocks).
     Blockchain(Vec<BlockHeader>, Vec<Block>),
+    TransactionId(TransactionId),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -84,6 +90,7 @@ pub enum PeerMessagePayload {
     GetBlockData(Vec<BlockHash>),
     Block(Block),
     BlockRelay(Block),
+    TransactionRelay(Transaction),
     JsonRpcRequest(JsonRpcRequest),
     JsonRpcResponse(JsonRpcResponse),
 }

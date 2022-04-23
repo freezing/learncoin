@@ -16,11 +16,13 @@ pub mod peer_connection;
 pub mod peer_message;
 pub mod peer_state;
 pub mod proof_of_work;
-pub mod public_key_address;
+pub mod public_key;
 pub mod transaction;
 
 pub use self::{
     active_chain::*, block::*, block_locator_object::*, client::*, flip_buffer::*, graphwiz::*,
     hash::*, learncoin_network::*, learncoin_node::*, merkle_tree::*, peer_connection::*,
-    peer_message::*, peer_state::*, proof_of_work::*, public_key_address::*, transaction::*,
+    peer_message::*, peer_state::*, proof_of_work::*, public_key::*, transaction::*,
 };
+pub use commands::account_balances::*;
+pub use commands::transactions::*;

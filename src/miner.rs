@@ -1,7 +1,7 @@
 use crate::{
     Block, BlockHash, BlockHeader, BlockTemplate, JsonRpcMethod, JsonRpcRequest, JsonRpcResponse,
-    JsonRpcResult, MerkleHash, MerkleTree, PeerConnection, PeerMessagePayload, ProofOfWork,
-    PublicKeyAddress, Transaction, TransactionInput, TransactionOutput, VersionMessage,
+    JsonRpcResult, LockingScript, MerkleHash, MerkleTree, PeerConnection, PeerMessagePayload,
+    ProofOfWork, PublicKey, Transaction, TransactionInput, TransactionOutput, VersionMessage,
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -22,7 +22,7 @@ struct ActiveBlockTemplate {
     previous_block_hash: BlockHash,
     difficulty_target: u32,
     height: u32,
-    public_key_address: PublicKeyAddress,
+    public_key_address: PublicKey,
     current_time: u64,
     merkle_root: MerkleHash,
     transactions: Vec<Transaction>,
@@ -172,8 +172,9 @@ impl Miner {
 
     fn update_active_block_template(&mut self, block_template: &BlockTemplate) {
         let mut transactions = vec![Self::make_coinbase_transaction(
+            block_template.height,
             Self::calculate_block_reward(block_template.height),
-            &block_template.public_key_address,
+            &block_template.public_key,
         )];
         transactions.extend_from_slice(block_template.transactions.as_slice());
         let merkle_root = MerkleTree::merkle_root_from_transactions(&transactions);
@@ -183,7 +184,7 @@ impl Miner {
             previous_block_hash: block_template.previous_block_hash,
             difficulty_target: block_template.difficulty_target,
             height: block_template.height,
-            public_key_address: block_template.public_key_address.clone(),
+            public_key_address: block_template.public_key.clone(),
             current_time: block_template.current_time,
             merkle_root,
             transactions,
@@ -231,14 +232,17 @@ impl Miner {
     }
 
     fn make_coinbase_transaction(
+        height: u32,
         block_reward: i64,
-        _public_key_address: &PublicKeyAddress,
+        public_key_address: &PublicKey,
     ) -> Transaction {
-        // TODO: Use public key address to create the unlocking script.
         let inputs = vec![TransactionInput::new_coinbase()];
-        let outputs = vec![TransactionOutput::new(block_reward)];
+        let outputs = vec![TransactionOutput::new(
+            block_reward,
+            LockingScript::new(public_key_address.clone()),
+        )];
         // Safety: The constructed transaction is always valid.
-        Transaction::new(inputs, outputs).unwrap()
+        Transaction::new(height, inputs, outputs).unwrap()
     }
 
     fn calculate_block_reward(height: u32) -> i64 {

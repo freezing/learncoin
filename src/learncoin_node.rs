@@ -2,9 +2,9 @@ use crate::block_index::BlockIndex;
 use crate::block_storage::BlockStorage;
 use crate::{
     ActiveChain, Block, BlockHash, BlockHeader, BlockLocatorObject, BlockTemplate, JsonRpcMethod,
-    JsonRpcRequest, JsonRpcResponse, JsonRpcResult, LearnCoinNetwork, MerkleTree, NetworkParams,
-    PeerMessagePayload, PeerState, ProofOfWork, PublicKeyAddress, Sha256, Transaction,
-    TransactionInput, TransactionOutput, VersionMessage,
+    JsonRpcRequest, JsonRpcResponse, JsonRpcResult, LearnCoinNetwork, LockingScript, MerkleTree,
+    NetworkParams, PeerMessagePayload, PeerState, ProofOfWork, PublicKey, Sha256, Transaction,
+    TransactionId, TransactionInput, TransactionOutput, VersionMessage,
 };
 use std::cmp::min;
 use std::collections::HashMap;
@@ -25,6 +25,7 @@ struct InFlightBlockRequest {
 
 pub struct LearnCoinNode {
     network: LearnCoinNetwork,
+    miner_public_key: PublicKey,
     version: u32,
     peer_states: HashMap<String, PeerState>,
     block_index: BlockIndex,
@@ -33,10 +34,15 @@ pub struct LearnCoinNode {
     sync_node: Option<String>,
     is_initial_header_sync_complete: bool,
     in_flight_block_requests: HashMap<BlockHash, InFlightBlockRequest>,
+    pending_transactions: HashMap<TransactionId, Transaction>,
 }
 
 impl LearnCoinNode {
-    pub fn connect(network_params: NetworkParams, version: u32) -> Result<Self, String> {
+    pub fn connect(
+        network_params: NetworkParams,
+        miner_public_key: PublicKey,
+        version: u32,
+    ) -> Result<Self, String> {
         let mut peer_states = HashMap::new();
         let genesis_block = Self::genesis_block();
         for peer_address in network_params.peers() {
@@ -54,6 +60,7 @@ impl LearnCoinNode {
 
         Ok(Self {
             network,
+            miner_public_key,
             version,
             peer_states,
             block_index: BlockIndex::new(genesis_block.clone()),
@@ -62,16 +69,23 @@ impl LearnCoinNode {
             sync_node: None,
             is_initial_header_sync_complete,
             in_flight_block_requests: HashMap::new(),
+            pending_transactions: HashMap::new(),
         })
     }
 
     pub fn genesis_block() -> Block {
         // 02 Sep 2021 at ~08:58
         let timestamp = 1630569467 as u64;
+        const GENESIS_TRANSACTION_HEIGHT: u32 = 0;
         const GENESIS_REWARD: i64 = 50;
+        const GENESIS_ADDRESS: &str = "genesis-address";
         let inputs = vec![TransactionInput::new_coinbase()];
-        let outputs = vec![TransactionOutput::new(GENESIS_REWARD)];
-        let transactions = vec![Transaction::new(inputs, outputs).unwrap()];
+        let outputs = vec![TransactionOutput::new(
+            GENESIS_REWARD,
+            LockingScript::new(PublicKey::new(GENESIS_ADDRESS.to_owned())),
+        )];
+        let transactions =
+            vec![Transaction::new(GENESIS_TRANSACTION_HEIGHT, inputs, outputs).unwrap()];
         let previous_block_hash = BlockHash::new(Sha256::from_raw([0; 32]));
         let merkle_root = MerkleTree::merkle_root_from_transactions(&transactions);
         // An arbitrary initial difficulty.
@@ -352,6 +366,9 @@ impl LearnCoinNode {
             }
             PeerMessagePayload::Block(block) => self.on_block(peer_address, block),
             PeerMessagePayload::BlockRelay(block) => self.on_relay_block(peer_address, block),
+            PeerMessagePayload::TransactionRelay(transaction) => {
+                self.on_transaction_relay(transaction)
+            }
             PeerMessagePayload::JsonRpcRequest(request) => {
                 self.on_json_rpc_request(peer_address, request, unix_timestamp)
             }
@@ -546,6 +563,9 @@ impl LearnCoinNode {
             }
             JsonRpcMethod::SubmitBlock(block) => self.on_submit_block(peer_address, id, block),
             JsonRpcMethod::GetBlockchain => self.on_get_blockchain(peer_address, id),
+            JsonRpcMethod::SendTransaction(input, outputs) => {
+                self.on_send_transaction(input, outputs, peer_address, id)
+            }
         }
     }
 
@@ -563,17 +583,20 @@ impl LearnCoinNode {
         let tip = self.active_chain.tip();
         let block_template = BlockTemplate {
             previous_block_hash: *tip.id(),
-            // TODO: Keep track of pending transactions.
-            transactions: vec![],
+            transactions: self
+                .pending_transactions
+                .values()
+                .map(Transaction::clone)
+                .collect::<Vec<Transaction>>(),
             // TODO: Calculate difficulty target.
             difficulty_target: 28,
             height: self
                 .block_index
                 .get_block_index_node(tip.id())
                 .unwrap()
-                .height as u32,
-            // TODO: Choose appropriate PublicKeyAddress.
-            public_key_address: PublicKeyAddress {},
+                .height as u32
+                + 1,
+            public_key: self.miner_public_key.clone(),
             current_time: unix_timestamp,
         };
         let result = Ok(JsonRpcResult::BlockTemplate(block_template));
@@ -618,6 +641,40 @@ impl LearnCoinNode {
             .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
     }
 
+    fn on_send_transaction(
+        &mut self,
+        input: TransactionInput,
+        outputs: Vec<TransactionOutput>,
+        peer_address: &str,
+        id: u64,
+    ) {
+        // Safety: Tip is always in the BlockIndex.
+        let tip_height = self
+            .block_index
+            .get_block_index_node(&self.active_chain.tip().header().hash())
+            .unwrap()
+            .height as u32;
+        match Transaction::new(tip_height + 1, vec![input], outputs) {
+            Ok(transaction) => {
+                let result = Ok(JsonRpcResult::TransactionId(*transaction.id()));
+                let response = JsonRpcResponse { id, result };
+                // TODO: Validation.
+                self.pending_transactions
+                    .insert(*transaction.id(), transaction.clone());
+                self.network
+                    .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
+                self.network
+                    .send_to_all(&PeerMessagePayload::TransactionRelay(transaction));
+            }
+            Err(e) => {
+                let result = Err(e);
+                let response = JsonRpcResponse { id, result };
+                self.network
+                    .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
+            }
+        }
+    }
+
     fn on_relay_block(&mut self, peer_address: &str, block: Block) {
         let mut peer_state = self.peer_states.get_mut(peer_address).unwrap();
         if !self
@@ -648,6 +705,16 @@ impl LearnCoinNode {
             .send_to_all(&PeerMessagePayload::BlockRelay(block));
     }
 
+    fn on_transaction_relay(&mut self, transaction: Transaction) {
+        // TODO: Validate.
+        if !self.pending_transactions.contains_key(transaction.id()) {
+            self.pending_transactions
+                .insert(*transaction.id(), transaction.clone());
+            self.network
+                .send_to_all(&PeerMessagePayload::TransactionRelay(transaction));
+        }
+    }
+
     fn maybe_update_active_chain(&mut self, candidate_block_hash: &BlockHash) {
         let active_tip = self
             .block_index
@@ -669,6 +736,12 @@ impl LearnCoinNode {
             // Remove blocks from the active chain until the LCA becomes the new tip.
             while self.active_chain.tip().header().hash() != lowest_common_ancestor {
                 let removed = self.active_chain.remove_tip();
+                // When a block is removed from the active chain,
+                // we add transactions back to the pool of pending transactions.
+                for transaction in removed.transactions() {
+                    self.pending_transactions
+                        .insert(*transaction.id(), transaction.clone());
+                }
                 assert_eq!(*removed.id(), *active_path.last().unwrap());
             }
             assert_eq!(
@@ -680,6 +753,10 @@ impl LearnCoinNode {
             for new_tip_hash in candidate_path {
                 let new_tip_block = self.block_storage.get(&new_tip_hash).unwrap();
                 self.active_chain.accept_block(new_tip_block.clone());
+                // When a block is added to the active chain, we remove transactions from the pool.
+                for transaction in new_tip_block.transactions() {
+                    self.pending_transactions.remove(transaction.id());
+                }
             }
         }
     }
