@@ -3,8 +3,9 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use crate::{
-    Graphwiz, JsonRpcMethod, JsonRpcRequest, JsonRpcResponse, JsonRpcResult, PeerConnection,
-    PeerMessagePayload, VersionMessage,
+    AccountBalances, Block, BlockHeader, Graphwiz, JsonRpcMethod, JsonRpcRequest, JsonRpcResponse,
+    JsonRpcResult, PeerConnection, PeerMessagePayload, PublicKey, Transaction, TransactionId,
+    TransactionInput, TransactionOutput, Transactions, VersionMessage,
 };
 use std::fs;
 
@@ -54,18 +55,73 @@ impl Client {
         suffix_length: usize,
         output_file: &str,
     ) -> Result<(), String> {
+        let (block_headers, active_blocks) = self.get_blockchain()?;
+        let data = match format {
+            GetBlockchainFormat::Graphwiz => {
+                Graphwiz::blockchain(block_headers, &active_blocks, suffix_length)
+            }
+        };
+        fs::write(output_file, data).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    pub fn execute_get_balances(&mut self) -> Result<(), String> {
+        let (_, active_blocks) = self.get_blockchain()?;
+        let mut balances = AccountBalances::extract_account_balances(&active_blocks)
+            // Sort by amount in non-increasing order.
+            .into_iter()
+            .collect::<Vec<(PublicKey, i64)>>();
+        balances.sort_by(|(_, lhs), (_, rhs)| rhs.cmp(lhs));
+        for (address, balance) in balances {
+            println!("{}: {}", address, balance);
+        }
+        Ok(())
+    }
+
+    pub fn execute_send_transaction(
+        &mut self,
+        input: TransactionInput,
+        outputs: Vec<TransactionOutput>,
+    ) -> Result<(), String> {
+        let id = self.send_json_rpc_request(JsonRpcMethod::SendTransaction(input, outputs))?;
+        match self.wait_for_json_rpc_response(id)? {
+            JsonRpcResponse { id, result } => match result? {
+                JsonRpcResult::TransactionId(transaction_id) => {
+                    println!("{}", transaction_id);
+                    Ok(())
+                }
+                unexpected => Err(format!("Received unexpected message: {:?}", unexpected)),
+            },
+        }
+    }
+
+    pub fn execute_get_transaction_outputs(&mut self, utxo_only: bool) -> Result<(), String> {
+        let (_, active_blocks) = self.get_blockchain()?;
+        let outputs = Transactions::extract_transaction_outputs(&active_blocks, utxo_only);
+        for (transaction_id, output_index, output) in outputs {
+            println!("{}:{} -> {}", transaction_id, output_index, output);
+        }
+        Ok(())
+    }
+
+    pub fn execute_get_transaction(&mut self, id: TransactionId) -> Result<(), String> {
+        let (_, active_blocks) = self.get_blockchain()?;
+        match Transactions::extract_transaction(&active_blocks, id)? {
+            None => {
+                println!("No tranasction found for id: {}", id);
+            }
+            Some((transaction, confirmations)) => {
+                println!("Confirmations: {}\n{:?}", confirmations, transaction)
+            }
+        };
+        Ok(())
+    }
+
+    fn get_blockchain(&mut self) -> Result<(Vec<BlockHeader>, Vec<Block>), String> {
         let id = self.send_json_rpc_request(JsonRpcMethod::GetBlockchain)?;
         match self.wait_for_json_rpc_response(id)? {
             JsonRpcResponse { id, result } => match result? {
-                JsonRpcResult::Blockchain(blocks, active_block_hashes) => {
-                    let data = match format {
-                        GetBlockchainFormat::Graphwiz => {
-                            Graphwiz::blockchain(blocks, &active_block_hashes, suffix_length)
-                        }
-                    };
-                    fs::write(output_file, data).map_err(|e| e.to_string())?;
-                    Ok(())
-                }
+                JsonRpcResult::Blockchain(headers, active_blocks) => Ok((headers, active_blocks)),
                 unexpected => Err(format!("Received unexpected message: {:?}", unexpected)),
             },
         }
