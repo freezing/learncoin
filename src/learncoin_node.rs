@@ -545,6 +545,7 @@ impl LearnCoinNode {
                 self.on_get_block_template(peer_address, id, unix_timestamp)
             }
             JsonRpcMethod::SubmitBlock(block) => self.on_submit_block(peer_address, id, block),
+            JsonRpcMethod::GetBlockchain => self.on_get_blockchain(peer_address, id),
         }
     }
 
@@ -606,6 +607,15 @@ impl LearnCoinNode {
             self.network
                 .send_to_all(&PeerMessagePayload::BlockRelay(block));
         }
+    }
+
+    fn on_get_blockchain(&mut self, peer_address: &str, id: u64) {
+        let all_headers = self.block_index.all_headers();
+        let active_blocks = self.active_chain.all_blocks().clone();
+        let result = Ok(JsonRpcResult::Blockchain(all_headers, active_blocks));
+        let response = JsonRpcResponse { id, result };
+        self.network
+            .send(peer_address, &PeerMessagePayload::JsonRpcResponse(response));
     }
 
     fn on_relay_block(&mut self, peer_address: &str, block: Block) {

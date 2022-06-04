@@ -13,6 +13,10 @@ impl ActiveChain {
         }
     }
 
+    pub fn all_blocks(&self) -> &Vec<Block> {
+        &self.hashes
+    }
+
     pub fn genesis(&self) -> &Block {
         self.hashes.first().unwrap()
     }

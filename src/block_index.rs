@@ -37,6 +37,13 @@ impl BlockIndex {
         Self { tree }
     }
 
+    pub fn all_headers(&self) -> Vec<BlockHeader> {
+        self.tree
+            .iter()
+            .map(|(block_hash, node)| node.block_header.clone())
+            .collect::<Vec<BlockHeader>>()
+    }
+
     /// Returns whether or not the given block hash exists in the tree.
     pub fn exists(&self, block_hash: &BlockHash) -> bool {
         self.tree.contains_key(block_hash)

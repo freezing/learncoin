@@ -1,3 +1,4 @@
+use crate::{Client, GetBlockchainFormat};
 use clap::{App, Arg, ArgMatches};
 use std::error::Error;
 use std::time::Duration;
@@ -16,6 +17,36 @@ impl ClientCliOptions {
                 .map(Duration::from_secs)?,
         })
     }
+}
+
+fn get_blockchain() -> App<'static> {
+    App::new("get-blockchain")
+        .version("0.1")
+        .about("Requests the full blockchain from the local node and prints it to the output file.")
+        .arg(
+            Arg::new("format")
+                .short('f')
+                .long("format")
+                .about("Output format of the printed blockchain.")
+                .takes_value(true)
+                .default_value("graphwiz")
+                .required(false),
+        )
+        .arg(
+            Arg::new("suffix-length")
+                .long("suffix-length")
+                .about("Length of the block hash suffix that is printed.")
+                .takes_value(true)
+                .default_value("8")
+                .required(false),
+        )
+        .arg(
+            Arg::new("output-file")
+                .long("output-file")
+                .about("File to which the output is printed.")
+                .takes_value(true)
+                .required(true),
+        )
 }
 
 pub fn client_command() -> App<'static> {
@@ -41,8 +72,20 @@ pub fn client_command() -> App<'static> {
                 .required(false)
                 .default_value("5"),
         )
+        .subcommand(get_blockchain())
 }
 
 pub fn run_client_command(matches: &ArgMatches) -> Result<(), Box<dyn Error>> {
-    unimplemented!()
+    let options = ClientCliOptions::parse(matches)?;
+    let mut client = Client::connect_with_handshake(options.server, options.timeout)?;
+
+    if let Some(ref matches) = matches.subcommand_matches("get-blockchain") {
+        let format = matches.value_of_t("format")?;
+        let hash_suffix = matches.value_of_t("suffix-length")?;
+        let output_file = matches.value_of("output-file").unwrap();
+        client.execute_get_blockchain(format, hash_suffix, output_file)?;
+        Ok(())
+    } else {
+        panic!("No command has been specified")
+    }
 }
